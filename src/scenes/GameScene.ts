@@ -4,8 +4,9 @@
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
 import {
-  COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
+  COMBAT_CENTER, TOP_BAR_H, COMBAT_BOTTOM,
   SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, FLOAT_ICON, FAIRY,
+  COLLAPSED, GROUND_Y, GAME_HEIGHT,
   monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
@@ -39,6 +40,10 @@ export class GameScene extends Phaser.Scene {
   private killFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private fairy!: Phaser.GameObjects.Image;
   private fairyTimer: Phaser.Time.TimerEvent | null = null;
+  private groundPlate!: Phaser.GameObjects.Ellipse;
+  private tapZone!: Phaser.GameObjects.Zone;
+  /** UI 접힘 여부 — 전투 화면을 아래까지 넓게 쓴다 */
+  private collapsed = false;
   private floatPool: Phaser.GameObjects.Text[] = [];
   private floatIdx = 0;
   private coinPool: Phaser.GameObjects.Image[] = [];
@@ -50,11 +55,13 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.state = this.registry.get('state') as GameState;
 
-    this.bgImage = this.add.image(0, 0, 'bg').setOrigin(0, 0);
+    this.bgImage = this.add.image(0, 0, 'bg').setOrigin(0, 0).setDisplaySize(720, GAME_HEIGHT);
     // 존 테마 오버레이 (스폰 시 존 색으로 갱신)
-    this.zoneOverlay = this.add.rectangle(0, 0, 720, PANEL_Y, 0x000000, 0.18).setOrigin(0, 0);
+    this.zoneOverlay = this.add.rectangle(0, 0, 720, GAME_HEIGHT, 0x000000, 0.18).setOrigin(0, 0);
 
-    this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, 592, 190, 40, 0x000000, 0.35);
+    // 발밑 단상 + 그림자 (배경 텍스처가 아니라 여기 — 접기 시 함께 내려간다)
+    this.groundPlate = this.add.ellipse(COMBAT_CENTER.x, GROUND_Y, 460, 70, 0x413060, 1);
+    this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, GROUND_Y + 4, 190, 40, 0x000000, 0.35);
     this.monster = this.add.image(COMBAT_CENTER.x, COMBAT_CENTER.y, 'monster0').setOrigin(0.5, 0.78);
 
     // 처치 파티클 — 이미터 1개 재사용 (풀 규칙: 매 처치마다 생성 금지)
@@ -96,9 +103,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 탭 입력: 전투 영역만 (스킬바 위쪽 — UI 탭이 공격으로 새지 않게)
-    const zone = this.add.zone(0, TOP_BAR_H, 720, COMBAT_BOTTOM - TOP_BAR_H)
+    this.tapZone = this.add.zone(0, TOP_BAR_H, 720, COMBAT_BOTTOM - TOP_BAR_H)
       .setOrigin(0, 0).setInteractive();
-    zone.on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
+    this.tapZone.on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
 
     // 요정: 광고 보상 캐리어. UIScene 이 'fairy-tap' 을 받아 광고를 제안한다.
     this.fairy = this.add.image(-100, 300, 'fairy').setDepth(30).setVisible(false);
@@ -113,11 +120,15 @@ export class GameScene extends Phaser.Scene {
     this.scheduleFairy(FAIRY.firstMs);
     // QA/E2E: 요정 즉시 소환 (DevTools.spawnFairy 경유)
     this.game.events.on('fairy-force', this.flyFairy, this);
+    // UI 접기: UIScene 이 알려주면 전투 화면을 아래까지 넓힌다
+    this.game.events.on('ui-collapse', this.setCollapsed, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.fairyTimer?.remove(false);
       this.fairyTimer = null;
       this.game.events.off('fairy-force', this.flyFairy, this);
+      this.game.events.off('ui-collapse', this.setCollapsed, this);
     });
+    this.setCollapsed(this.registry.get('uiCollapsed') === true);
 
     // DPS 틱 (10Hz)
     this.time.addEvent({ delay: 100, loop: true, callback: () => this.dpsTick() });
@@ -143,10 +154,44 @@ export class GameScene extends Phaser.Scene {
         this.state.tapDamage() * HEAVENLY_STRIKE_MULT * this.state.skillPowerMult(),
       );
       this.cameras.main.flash(180, 255, 240, 160);
-      this.applyDamage(dmg, true, COMBAT_CENTER.x, COMBAT_CENTER.y - 180);
+      this.applyDamage(dmg, true, COMBAT_CENTER.x, this.combatY() - 180);
     });
 
     this.spawn();
+  }
+
+  // --- 레이아웃 (UI 접기) ---------------------------------------------------
+
+  /** 현재 레이아웃의 몬스터 중심 y */
+  private combatY(): number {
+    return this.collapsed ? COLLAPSED.monsterY : COMBAT_CENTER.y;
+  }
+
+  /** 현재 레이아웃의 전투 스케일 */
+  private viewScale(): number {
+    return this.collapsed ? COLLAPSED.monsterScale : 1;
+  }
+
+  /** 현재 레이아웃의 전투 탭 존 하한 */
+  private combatBottom(): number {
+    return this.collapsed ? COLLAPSED.combatBottom : COMBAT_BOTTOM;
+  }
+
+  /**
+   * UI 접기 전환. 하단 패널이 사라진 만큼 몬스터/단상을 내리고 키워
+   * 배경과 몬스터를 넓게 보여준다. 배경 텍스처는 이미 화면 전체 높이다.
+   */
+  private setCollapsed(on: boolean): void {
+    this.collapsed = on;
+    const s = this.viewScale();
+    const gy = on ? COLLAPSED.groundY : GROUND_Y;
+    this.tapZone.setSize(720, this.combatBottom() - TOP_BAR_H, true);
+    this.groundPlate.setPosition(COMBAT_CENTER.x, gy).setScale(s);
+    this.monsterShadow.setPosition(COMBAT_CENTER.x, gy + 4 * s)
+      .setScale((this.isBoss ? 1.4 : 1) * s);
+    this.baseScale = (this.isBoss ? 1.25 : 1) * s;
+    this.tweens.killTweensOf(this.monster);
+    this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setScale(this.baseScale);
   }
 
   // --- 요정 (보상형 광고) ---------------------------------------------------
@@ -162,7 +207,7 @@ export class GameScene extends Phaser.Scene {
   /** 전투 영역을 좌→우(또는 우→좌)로 가로지르며 상하로 흔들린다 */
   private flyFairy(): void {
     const leftToRight = Math.random() < 0.5;
-    const y = Phaser.Math.Between(TOP_BAR_H + 110, COMBAT_BOTTOM - 80);
+    const y = Phaser.Math.Between(TOP_BAR_H + 110, this.combatBottom() - 80);
     const from = leftToRight ? -60 : 780;
     const to = leftToRight ? 780 : -60;
     this.fairy.setPosition(from, y).setVisible(true).setAlpha(1);
@@ -222,7 +267,7 @@ export class GameScene extends Phaser.Scene {
     const bgKey = 'bg-zone' + zone.id;
     if (this.textures.exists(bgKey)) {
       if (this.bgImage.texture.key !== bgKey) {
-        this.bgImage.setTexture(bgKey).setDisplaySize(720, PANEL_Y);
+        this.bgImage.setTexture(bgKey).setDisplaySize(720, GAME_HEIGHT);
       }
       this.zoneOverlay.setFillStyle(zone.tint, 0.08);
     } else {
@@ -246,11 +291,11 @@ export class GameScene extends Phaser.Scene {
       this.game.events.emit('boss-timer', -1);
     }
 
-    const targetScale = this.isBoss ? 1.25 : 1;
+    const targetScale = (this.isBoss ? 1.25 : 1) * this.viewScale();
     this.baseScale = targetScale;
     this.tweens.killTweensOf(this.monster);
-    this.monster.setPosition(COMBAT_CENTER.x, COMBAT_CENTER.y).setAlpha(0).setScale(targetScale * 0.6);
-    this.monsterShadow.setScale(this.isBoss ? 1.4 : 1);
+    this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setAlpha(0).setScale(targetScale * 0.6);
+    this.monsterShadow.setScale((this.isBoss ? 1.4 : 1) * this.viewScale());
     this.tweens.add({
       targets: this.monster, alpha: 1, scale: targetScale,
       duration: 200, ease: 'Back.Out',
@@ -277,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     Sfx.play(crit ? 'crit' : 'tap');
     if (crit) this.cameras.main.shake(70, 0.004);
     const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
-    this.applyDamage(dmg, crit, x, Math.min(y, PANEL_Y - 120));
+    this.applyDamage(dmg, crit, x, Math.min(y, this.combatBottom() - 60));
     // 몬스터 반동 — 기준 스케일 대비 절대값으로, 연타 시 누적 수축 방지
     this.tweens.killTweensOf(this.monster);
     this.monster.setScale(this.baseScale);
@@ -309,7 +354,7 @@ export class GameScene extends Phaser.Scene {
         this.applyDamage(
           dmg, crit,
           COMBAT_CENTER.x + Phaser.Math.Between(-70, 70),
-          COMBAT_CENTER.y - Phaser.Math.Between(60, 160),
+          this.combatY() - Phaser.Math.Between(60, 160),
         );
         if (this.dead) return;
       }
@@ -324,7 +369,7 @@ export class GameScene extends Phaser.Scene {
     if (this.dpsCarry >= dps / 2) { // 0.5초 단위로만 숫자 표시 (스팸 방지)
       this.showFloat(
         Phaser.Math.Between(COMBAT_CENTER.x - 90, COMBAT_CENTER.x + 90),
-        Phaser.Math.Between(COMBAT_CENTER.y - 200, COMBAT_CENTER.y - 120),
+        Phaser.Math.Between(this.combatY() - 200, this.combatY() - 120),
         fmt(Math.round(this.dpsCarry)), '#9fd8ff', 30,
       );
       this.dpsCarry = 0;

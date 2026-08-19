@@ -27,7 +27,13 @@
   오버레이 콘텐츠는 하단 패널 좌표계(`PANEL_Y + n`)로 배치하고 컨테이너만 `OVERLAY_DY` 로 끌어올린다.
 - 보스 도전은 상단 우측(`BOSS_BTN`), 전투 화면 중앙은 비워 둔다.
 - 보상형 광고는 요정(`FAIRY`)이 전달 — 상단 고정 광고 버튼 금지.
-- 플로팅 아이콘을 늘리면 `GameScene.isReservedUi()` 판정도 함께 갱신 (전투 탭 누수 방지).
+- 플로팅 아이콘을 늘리면 `FLOAT_ICON.count` 와 `GameScene.isReservedUi()` 를 함께 갱신
+  (전투 탭 누수 방지).
+- **UI 접기**: 하단 탭 바는 남기고 패널 본문만 접는다. 좌표는 `COLLAPSED` 상수 단일 출처.
+  UIScene 이 `registry.uiCollapsed` + `game.events('ui-collapse')` 로 알리고,
+  GameScene 이 몬스터/단상/탭 존을 아래로 내려 넓힌다.
+- 배경 텍스처는 **화면 전체 높이(720x1280)** — 접으면 아래쪽 지면이 그대로 드러난다.
+  발밑 단상은 배경이 아니라 GameScene 이 그린다 (접기 시 함께 내려가야 하므로).
 
 ## 밸런스 수정
 - 곡선은 전부 `src/config.ts` 의 함수(`monsterHp`, `tapCost`, `heroDps`...). UI/Scene 에 숫자 하드코딩 금지.

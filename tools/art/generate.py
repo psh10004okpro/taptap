@@ -46,8 +46,10 @@ ZONES = [
     ("bg-zone8", "floating sky islands above clouds, waterfalls falling into the void, bright blue sky"),
     ("bg-zone9", "cosmic abyss with dark void, swirling nebula, floating obsidian rocks, deep indigo"),
 ]
-BG_SUFFIX = ("; wide open flat ground area in the lower third as a stage for a monster, "
-             "no creatures, no characters, vertical mobile game battle background, " + STYLE)
+BG_SUFFIX = ("; tall vertical composition: sky and horizon in the upper 45%, "
+             "wide open flat ground filling the lower 55% as a stage for a monster, "
+             "no creatures, no characters, vertical mobile game battle background "
+             "(9:16, the lower half stays visible when the UI is collapsed), " + STYLE)
 
 MONSTERS = [
     ("monster0", "cute round green slime with big glossy eyes and a happy grin"),
@@ -137,7 +139,7 @@ def manifest() -> list[dict]:
     jobs: list[dict] = []
     for key, desc in ZONES:
         jobs.append({"key": key, "prompt": desc + BG_SUFFIX,
-                     "size": "1024x1024", "quality": "medium", "background": None})
+                     "size": "1024x1536", "quality": "medium", "background": None})
     for key, desc in MONSTERS:
         jobs.append({"key": key, "prompt": desc + MONSTER_SUFFIX,
                      "size": "1024x1024", "quality": "medium", "background": "transparent"})

@@ -1166,3 +1166,46 @@ test('요정: 소환된 요정을 탭하면 광고 보상(골드 x2)이 지급�
   expect(await page.evaluate(() => window.__taptap!.state.isGoldBoostActive())).toBe(true);
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });
+
+test('UI 접기: 하단 탭 바만 남기고 전투 화면을 아래까지 넓게 쓴다', async ({ page }) => {
+  const errors = await setup(page);
+  const reg = () => page.evaluate(() =>
+    (window.__taptap!.game as { registry: { get(k: string): unknown } })
+      .registry.get('uiCollapsed'));
+
+  expect(await reg()).toBe(false);
+
+  // 펼침 상태에서 구 패널 영역(y=900)은 전투가 아니다
+  const taps0 = await page.evaluate(() => window.__taptap!.state.lifetime.taps);
+  await tapGame(page, 360, 900, 3);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__taptap!.state.lifetime.taps)).toBe(taps0);
+
+  // 접기 아이콘 (좌측 플로팅 3번째)
+  await tapGame(page, 56, 536);
+  await page.waitForTimeout(400);
+  expect(await reg()).toBe(true);
+  expect(await page.evaluate(() => localStorage.getItem('taptap-ui-collapsed'))).toBe('1');
+
+  // 접힘 상태에서는 같은 좌표가 전투 영역이 된다 (몬스터가 아래로 내려와 커짐)
+  await tapGame(page, 360, 900, 3);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__taptap!.state.lifetime.taps)).toBeGreaterThan(taps0);
+  await page.screenshot({ path: 'screenshots/25-collapsed.png' });
+
+  // 리로드해도 접힘 유지 (기기 로컬 설정)
+  await page.reload();
+  await page.waitForFunction(
+    () => (window.__taptap?.game as { registry: { get(k: string): unknown } } | undefined)
+      ?.registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
+  expect(await reg()).toBe(true);
+
+  // 아래로 내려간 탭 버튼을 누르면 펼쳐지며 그 탭으로 이동
+  await tapGame(page, 502, 1240);
+  await page.waitForTimeout(400);
+  expect(await reg()).toBe(false);
+  await page.screenshot({ path: 'screenshots/26-reexpanded.png' });
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});

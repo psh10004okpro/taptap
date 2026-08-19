@@ -7,7 +7,7 @@
 import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, PANEL_Y, SKILL_BAR_Y, TAB_Y,
-  FLOAT_ICON, BOSS_BTN, OVERLAY_DY,
+  FLOAT_ICON, BOSS_BTN, OVERLAY_DY, COLLAPSED,
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
   EQUIP_SLOTS, RARITIES, DAILY_QUESTS, DAILY_QUEST_COUNT, EQUIP_DROP_CHANCE,
 } from '../config.ts';
@@ -34,6 +34,7 @@ const FONT = 'Trebuchet MS, Malgun Gothic, sans-serif';
 // 하단 탭 = 성장 축만 (TT2 문법). 퀘스트/랭킹은 플로팅 아이콘 오버레이.
 const TAB_NAMES = ['소드마스터', '영웅', '장비', '펫', '유물'] as const;
 const TAB_SWORD = 0, TAB_HERO = 1;
+const COLLAPSE_KEY = 'taptap-ui-collapsed';
 
 interface HeroRow {
   icon: Phaser.GameObjects.Image;
@@ -85,6 +86,11 @@ export class UIScene extends Phaser.Scene {
 
   private tabButtons: { img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text }[] = [];
   private tabContents: Phaser.GameObjects.Container[] = [];
+  private panelBg!: Phaser.GameObjects.Image;
+  /** UI 접힘 — 하단 탭 바만 남기고 패널을 접어 전투 화면을 넓게 쓴다 (기기 로컬 설정) */
+  private collapsed = false;
+  private collapseGlyph!: Phaser.GameObjects.Text;
+  private collapseLabel!: Phaser.GameObjects.Text;
 
   private tapName!: Phaser.GameObjects.Text;
   private tapSub!: Phaser.GameObjects.Text;
@@ -181,6 +187,7 @@ export class UIScene extends Phaser.Scene {
     this.settingsParts = [];
     this.openPopups = 0;
     this.curTab = 0;
+    this.collapsed = false;
     this.toast = null;
     this.registry.set('uiBlocking', false);
     // QA 모드(?dev=1)에서는 Mock 결제로 상점 흐름 전체를 테스트할 수 있다
@@ -199,6 +206,10 @@ export class UIScene extends Phaser.Scene {
     this.bindEvents();
     this.refreshAll();
     this.setTab(0);
+    // 기기 로컬 접힘 설정 복원 (setTab 이 펼침을 강제하므로 그 뒤에)
+    let savedCollapse: string | null = null;
+    try { savedCollapse = localStorage.getItem(COLLAPSE_KEY); } catch { /* noop */ }
+    this.applyCollapse(savedCollapse === '1');
 
     // 스킬 쿨다운/지속시간은 시계 기반이라 주기 폴링으로 갱신
     this.time.addEvent({ delay: 200, loop: true, callback: () => this.refreshSkillBar() });
@@ -304,14 +315,14 @@ export class UIScene extends Phaser.Scene {
 
   private buildFloatIcons(): void {
     const mk = (i: number, glyph: string, label: string, on: () => void):
-    Phaser.GameObjects.Image => {
+    { glyph: Phaser.GameObjects.Text; label: Phaser.GameObjects.Text } => {
       const y = FLOAT_ICON.y0 + i * FLOAT_ICON.gap;
       const img = this.add.image(FLOAT_ICON.x, y, 'float-btn').setDepth(12);
-      this.add.text(FLOAT_ICON.x, y - 4, glyph, {
+      const g = this.add.text(FLOAT_ICON.x, y - 4, glyph, {
         fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
         stroke: '#22182f', strokeThickness: 4,
       }).setOrigin(0.5).setDepth(13);
-      this.add.text(FLOAT_ICON.x, y + 30, label, {
+      const l = this.add.text(FLOAT_ICON.x, y + 44, label, {
         fontFamily: FONT, fontSize: '13px', color: '#e8dcff', fontStyle: 'bold',
         stroke: '#22182f', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(13);
@@ -319,15 +330,44 @@ export class UIScene extends Phaser.Scene {
         Sfx.play('tab');
         on();
       });
-      return img;
+      return { glyph: g, label: l };
     };
     mk(0, '퀘', '퀘스트', () => this.openQuestOverlay());
     mk(1, '랭', '랭킹', () => this.openRankOverlay());
+    const col = mk(2, '▼', '넓게', () => this.applyCollapse(!this.collapsed));
+    this.collapseGlyph = col.glyph;
+    this.collapseLabel = col.label;
     // 수령 가능한 퀘스트/업적 개수 배지
-    this.questBadge = this.add.text(FLOAT_ICON.x + 26, FLOAT_ICON.y0 - 26, '', {
+    this.questBadge = this.add.text(FLOAT_ICON.x + 28, FLOAT_ICON.y0 - 28, '', {
       fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
       backgroundColor: '#c0392b', padding: { x: 6, y: 2 },
     }).setOrigin(0.5).setDepth(14).setVisible(false);
+  }
+
+  /**
+   * UI 접기/펼치기. 하단 탭 바는 남기고 패널 본문을 접은 뒤 탭 바·스킬바를
+   * 화면 아래로 내려, 배경과 몬스터를 넓게 보여준다 (GameScene 이 'ui-collapse' 수신).
+   */
+  private applyCollapse(on: boolean): void {
+    this.collapsed = on;
+    try { localStorage.setItem(COLLAPSE_KEY, on ? '1' : '0'); } catch { /* noop */ }
+    this.registry.set('uiCollapsed', on);
+
+    const tabY = on ? COLLAPSED.tabY : TAB_Y;
+    const skillY = on ? COLLAPSED.skillBarY : SKILL_BAR_Y;
+    this.panelBg.setVisible(!on);
+    this.tabContents.forEach((c, k) => c.setVisible(!on && k === this.curTab));
+    this.tabButtons.forEach((t) => { t.img.setY(tabY); t.label.setY(tabY); });
+    this.skillBtns.forEach((b) => {
+      b.base.setY(skillY);
+      b.ring.setY(skillY);
+      b.glyph.setY(skillY - 2);
+      b.status.setY(skillY + 26);
+    });
+    this.collapseGlyph?.setText(on ? '▲' : '▼');
+    this.collapseLabel?.setText(on ? '패널' : '넓게');
+    this.game.events.emit('ui-collapse', on);
+    this.refreshTutorial();
   }
 
   private openQuestOverlay(): void {
@@ -424,7 +464,7 @@ export class UIScene extends Phaser.Scene {
     // 대상 하이라이트 포인터 (특정 탭 전용 단계는 다른 탭에서 숨김)
     const pt = UIScene.TUT_POINTS[step];
     this.tweens.killTweensOf(this.tutPointer);
-    if (pt && (pt[3] < 0 || this.curTab === pt[3])) {
+    if (pt && (pt[3] < 0 || (!this.collapsed && this.curTab === pt[3]))) {
       const [x, y, glyph] = pt;
       this.tutPointer.setText(glyph).setPosition(x, y).setVisible(true);
       // 가리키는 방향으로 까딱인다 (▶ 는 가로, ▼/▲ 는 세로)
@@ -533,7 +573,7 @@ export class UIScene extends Phaser.Scene {
   // --- 하단 탭 패널 ---------------------------------------------------------
 
   private buildPanel(): void {
-    this.add.image(0, PANEL_Y - 24, 'panel').setOrigin(0, 0);
+    this.panelBg = this.add.image(0, PANEL_Y - 24, 'panel').setOrigin(0, 0);
 
     // 탭 버튼 (5탭 x 132px + 9px 간격)
     TAB_NAMES.forEach((label, i) => {
@@ -562,6 +602,7 @@ export class UIScene extends Phaser.Scene {
   private curTab = 0;
 
   private setTab(i: number): void {
+    if (this.collapsed) this.applyCollapse(false); // 접힘 상태에서 탭 = 펼치며 이동
     this.curTab = i;
     this.tabButtons.forEach((t, k) => t.img.setTexture(k === i ? 'tab-on' : 'tab-off'));
     this.tabContents.forEach((c, k) => c.setVisible(k === i));

@@ -16,7 +16,7 @@ export const TAB_Y = PANEL_Y - 2;  // 패널 탭 버튼 중심 y
 
 // 전투 화면 좌측 플로팅 아이콘 (퀘스트/랭킹) — 하단 탭을 성장 축 전용으로 비우기 위해
 // 부가 콘텐츠는 전투 화면 가장자리 아이콘이 여는 오버레이로 뺀다.
-export const FLOAT_ICON = { x: 56, y0: 344, gap: 96, r: 38, count: 2 };
+export const FLOAT_ICON = { x: 56, y0: 344, gap: 96, r: 38, count: 3 };
 // 보스 도전 버튼 — 상단 우측(스테이지 표기 옆)
 export const BOSS_BTN = { x: 624, y: 52 };
 // 오버레이 카드(퀘스트/랭킹) 콘텐츠 컨테이너 y 오프셋.
@@ -24,6 +24,19 @@ export const BOSS_BTN = { x: 624, y: 52 };
 export const OVERLAY_DY = -500;
 // 요정(보상형 광고) 등장 주기 — 전투 화면을 가로질러 날아가고 탭하면 광고 제안
 export const FAIRY = { firstMs: 22_000, minMs: 45_000, maxMs: 95_000, crossMs: 9_000 };
+
+// UI 접기 — 하단 탭 바는 남기고 패널을 접어 배경/몬스터를 넓게 본다.
+// 배경 텍스처는 화면 전체 높이(720x1280)라 접으면 아래쪽 지면이 그대로 드러난다.
+export const COLLAPSED = {
+  tabY: 1240,          // 탭 버튼 중심 y (화면 맨 아래)
+  skillBarY: 1152,     // 스킬 버튼 중심 y
+  combatBottom: 1104,  // 전투 탭 존 하한 (스킬바 위)
+  monsterY: 696,       // 몬스터 중심 y
+  monsterScale: 1.65,  // 몬스터/단상 배율
+  groundY: 891,        // 발밑 단상 중심 y
+};
+// 펼침 상태의 발밑 단상 y (배경이 아니라 GameScene 이 그린다)
+export const GROUND_Y = 588;
 
 export const MONSTERS_PER_STAGE = 10; // 9마리 + 보스
 export const BOSS_TIME_LIMIT = 30_000; // ms (유물로 연장 가능)

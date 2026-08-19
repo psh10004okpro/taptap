@@ -45,13 +45,15 @@ export class BootScene extends Phaser.Scene {
     return !this.textures.exists(key);
   }
 
-  /** 세로 그라데이션 하늘 + 능선 + 지면 */
+  /** 세로 그라데이션 하늘 + 능선 + 지면 (화면 전체 높이 — UI 접기 시 아래까지 보인다) */
   private makeBackground(): void {
+    if (!this.missing('bg')) return;
     const g = this.add.graphics();
+    const SKY_H = 560; // 하늘/능선 구간. 그 아래는 전부 지면
     const top = Phaser.Display.Color.ValueToColor(0x2b1e4f);
     const bottom = Phaser.Display.Color.ValueToColor(0x7a4f9e);
     const strips = 40;
-    const stripH = PANEL_Y / strips;
+    const stripH = SKY_H / strips;
     for (let i = 0; i < strips; i++) {
       const c = Phaser.Display.Color.Interpolate.ColorWithColor(top, bottom, strips, i);
       g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b), 1);
@@ -60,14 +62,12 @@ export class BootScene extends Phaser.Scene {
     // 먼 능선
     g.fillStyle(0x3a2a63, 1);
     for (let x = 0; x <= GAME_WIDTH; x += 90) {
-      g.fillTriangle(x - 70, 560, x + 20, 400 + (x % 180 === 0 ? -40 : 10), x + 110, 560);
+      g.fillTriangle(x - 70, SKY_H, x + 20, 400 + (x % 180 === 0 ? -40 : 10), x + 110, SKY_H);
     }
-    // 지면
+    // 지면 — 접기 상태에서 드러나는 아래쪽까지 채운다 (발밑 단상은 GameScene 이 그린다)
     g.fillStyle(0x2e2247, 1);
-    g.fillRect(0, 560, GAME_WIDTH, PANEL_Y - 560);
-    g.fillStyle(0x413060, 1);
-    g.fillEllipse(360, 585, 460, 70); // 몬스터 발밑 단상
-    g.generateTexture('bg', GAME_WIDTH, PANEL_Y);
+    g.fillRect(0, SKY_H, GAME_WIDTH, GAME_HEIGHT - SKY_H);
+    g.generateTexture('bg', GAME_WIDTH, GAME_HEIGHT);
     g.destroy();
   }
 

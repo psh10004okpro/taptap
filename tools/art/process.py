@@ -18,7 +18,7 @@ OUT = os.path.normpath(os.path.join(HERE, "..", "..", "public", "assets"))
 
 # key prefix -> (kind, w, h)
 SPECS: list[tuple[str, str, int, int]] = [
-    ("bg-zone", "bg", 720, 748),
+    ("bg-zone", "bg", 720, 1280),
     ("monster", "sprite", 200, 170),
     ("boss", "sprite", 280, 250),
     ("hero", "circle", 42, 42),
