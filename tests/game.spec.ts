@@ -25,6 +25,8 @@ declare global {
         daily: { date: string; counters: Record<string, number>; claimed: boolean[] };
         questProgress(id: number): number; canClaimQuest(id: number): boolean;
         claimQuest(id: number): boolean; ensureDaily(): void;
+        todaysQuests(): number[]; heroPassivesActive(id: number): number;
+        recordAdWatch(): void;
         critChance(): number; petLevels: number[]; treeLevels: number[];
         spEarned(): number; spSpent(): number; spAvailable(): number;
         canBuyNode(id: number): boolean; tryBuyNode(id: number): boolean;
@@ -391,6 +393,8 @@ test('일일 퀘스트: 카운터 누적 → 달성 → 보상 수령', async ({
   const r = await page.evaluate(() => {
     const s = window.__taptap!.state;
     s.ensureDaily();
+    // 로테이션을 고정해 결정성 확보 (오늘의 3종은 날짜 시드라 매일 다름)
+    (s.daily as unknown as { questIds: number[] }).questIds = [0, 1, 2];
     // 스킬 3회 사용 퀘스트(id 2, relics 보상)를 강제 달성
     s.maxStage = 30;
     s.daily.counters.skillUses = 3;
@@ -788,6 +792,87 @@ test('BM 상점 UI: dev 모드에서 Mock 결제로 보석 팩 구매가 완료�
   }));
   expect(r.gems).toBe(80);
   expect(r.purchased).toBe(80);
+  expect(errors).toHaveLength(0);
+});
+
+test('볼륨 확장: 일퀘 로테이션이 결정적이고 목록 밖 퀘스트는 수령 불가', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const today = s.todaysQuests();
+    const daily = s.daily as unknown as { questIds: number[] };
+    // 로테이션 밖 퀘스트는 달성해도 수령 불가
+    daily.questIds = [0, 1, 3];
+    s.daily.counters.skillUses = 99; // id 2 (스킬 3회) 조건 충족
+    const outsideClaim = s.canClaimQuest(2);
+    return { today, len: today.length, outsideClaim };
+  });
+  expect(r.len).toBe(3);
+  expect(new Set(r.today).size).toBe(3); // 중복 없음
+  expect(r.outsideClaim).toBe(false);
+  expect(errors).toHaveLength(0);
+});
+
+test('볼륨 확장: 유물 40종 페이징에서 후기 유물 구매가 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addRelics(1000);
+    const ok = s.tryBuyArtifact(39);        // 종언의 서 (마지막 유물)
+    const dmgBoost = s.tapDamage();
+    return { ok, lvl: s.artifactLevels[39], count: s.artifactLevels.length, dmgBoost };
+  });
+  expect(r.ok).toBe(true);
+  expect(r.lvl).toBe(1);
+  expect(r.count).toBe(40);
+  // UI: [유물] 탭 → ▶ 페이저로 마지막 페이지까지 이동해도 에러 없음
+  await tapGame(page, 360, 746);
+  await page.waitForTimeout(300);
+  for (let i = 0; i < 5; i++) await tapGame(page, 440, 1260);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'screenshots/19-artifacts-paged.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('볼륨 확장: 영웅 2차 패시브가 100레벨에서 추가 해금된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.heroLevels[0] = 20;
+    const p1 = s.heroPassivesActive(0);
+    const dmg1 = s.tapDamage();
+    s.heroLevels[0] = 100;
+    const p2 = s.heroPassivesActive(0);
+    const dmg2 = s.tapDamage();
+    s.heroLevels[0] = 200;
+    const p3 = s.heroPassivesActive(0);
+    return { p1, p2, p3, up: dmg2 >= dmg1 };
+  });
+  expect(r.p1).toBe(1);
+  expect(r.p2).toBe(2);
+  expect(r.p3).toBe(3);
+  expect(r.up).toBe(true);
+  expect(errors).toHaveLength(0);
+});
+
+test('볼륨 확장: 트리 계열 토글로 군주 T5 노드 구매가 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.maxStage = 600; // SP 60
+    // 군주 계열 T1~T5 진행
+    for (let i = 0; i < 3; i++) s.tryBuyNode(4);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(5);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(6);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(7);
+    const lockedT5 = s.canBuyNode(14);
+    const okT5 = s.tryBuyNode(14);          // 총력전 (T4 노드 3렙 후)
+    return { lockedT5, okT5, lvl: s.treeLevels[14], nodes: s.treeLevels.length };
+  });
+  expect(r.lockedT5).toBe(true);
+  expect(r.okT5).toBe(true);
+  expect(r.lvl).toBe(1);
+  expect(r.nodes).toBe(18);
   expect(errors).toHaveLength(0);
 });
 

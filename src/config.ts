@@ -44,6 +44,7 @@ export interface HeroPassive {
   type: EffectType;
   value: number;
   desc: string;
+  unlockLevel: number;
 }
 
 export interface HeroDef {
@@ -53,10 +54,11 @@ export interface HeroDef {
   baseCost: number;
   baseDps: number;
   color: number;
-  passive: HeroPassive;
+  /** 마일스톤 패시브 (레벨 20/50/100 해금) */
+  passives: HeroPassive[];
 }
 
-/** 영웅 패시브 해금 레벨 */
+/** 1차 패시브 해금 레벨 (2차 50, 3차 100 은 생성 규칙 참조) */
 export const HERO_PASSIVE_UNLOCK = 20;
 
 const HERO_COLORS = [0xe74c3c, 0x2ecc71, 0xe67e22, 0x9b59b6, 0x95a5a6, 0xf1c40f, 0x3498db, 0x34495e];
@@ -89,16 +91,25 @@ const HERO_RAW: [string, string, EffectType, number, string][] = [
   ['에테르', '시간의 감시자', 'skillDur', 0.15, '스킬 지속 +15%'],
 ];
 
-/** 24영웅 — 비용 x9.5/티어 (sim 으로 페이싱 검증), DPS 는 비용의 6% (약 17초 회수) */
-export const HEROES: HeroDef[] = HERO_RAW.map(([name, title, type, value, desc], i) => ({
-  id: i,
-  name,
-  title,
-  baseCost: Math.round(50 * Math.pow(9.5, i)),
-  baseDps: Math.max(1, Math.round(50 * Math.pow(9.5, i) * 0.06 * 100) / 100),
-  color: HERO_COLORS[i % HERO_COLORS.length],
-  passive: { type, value, desc },
-}));
+/** 24영웅 — 비용 x9.5/티어 (sim 으로 페이싱 검증), DPS 는 비용의 6% (약 17초 회수)
+ *  패시브 3중 마일스톤: 20렙 = 고유 패시브, 100렙 = 동일 효과 x0.75 추가,
+ *  150렙 = 모든 데미지 소량 — 수치/해금은 sim 페이싱으로 조정됨 (2x/3x 는 인플레) */
+export const HEROES: HeroDef[] = HERO_RAW.map(([name, title, type, value, desc], i) => {
+  const allDmg3rd = 0.02 * (1 + Math.floor(i / 8));
+  return {
+    id: i,
+    name,
+    title,
+    baseCost: Math.round(50 * Math.pow(9.5, i)),
+    baseDps: Math.max(1, Math.round(50 * Math.pow(9.5, i) * 0.06 * 100) / 100),
+    color: HERO_COLORS[i % HERO_COLORS.length],
+    passives: [
+      { type, value, desc, unlockLevel: HERO_PASSIVE_UNLOCK },
+      { type, value: value * 0.75, desc: `${desc} (강화)`, unlockLevel: 100 },
+      { type: 'allDmg', value: allDmg3rd, desc: `모든 데미지 +${Math.round(allDmg3rd * 100)}%`, unlockLevel: 200 },
+    ],
+  };
+});
 
 // --- 액티브 스킬 -----------------------------------------------------------
 
@@ -181,6 +192,27 @@ export const ARTIFACTS: ArtifactDef[] = [
   { id: 17, name: '여명의 등불', desc: '오프라인 보상 +15%', baseCost: 7, maxLevel: 0, color: 0xf8c471, effect: { type: 'offline', perLvl: 0.15 } },
   { id: 18, name: '폭풍의 핵', desc: '탭 데미지 +60%', baseCost: 9, maxLevel: 0, color: 0x5dade2, effect: { type: 'tap', perLvl: 0.6 } },
   { id: 19, name: '대지의 맥박', desc: '영웅 DPS +60%', baseCost: 9, maxLevel: 0, color: 0x7d6608, effect: { type: 'dps', perLvl: 0.6 } },
+  // --- 후기 유물 (id 20~39): 고비용·고효율, 환생 5회차+ 대상 ---
+  { id: 20, name: '용왕의 이빨', desc: '탭 데미지 +100%', baseCost: 14, maxLevel: 0, color: 0x922b21, effect: { type: 'tap', perLvl: 1.0 } },
+  { id: 21, name: '불멸 군단기', desc: '영웅 DPS +100%', baseCost: 14, maxLevel: 0, color: 0x1f618d, effect: { type: 'dps', perLvl: 1.0 } },
+  { id: 22, name: '탐욕의 왕관', desc: '골드 획득 +50%', baseCost: 12, maxLevel: 0, color: 0xb7950b, effect: { type: 'gold', perLvl: 0.5 } },
+  { id: 23, name: '창세의 파편', desc: '모든 데미지 +25%', baseCost: 16, maxLevel: 0, color: 0xfdfefe, effect: { type: 'allDmg', perLvl: 0.25 } },
+  { id: 24, name: '월광 단검', desc: '크리티컬 확률 +0.8%p', baseCost: 10, maxLevel: 25, color: 0xa9cce3, effect: { type: 'critChance', perLvl: 0.008 } },
+  { id: 25, name: '광기의 가면', desc: '크리티컬 배율 +2', baseCost: 13, maxLevel: 0, color: 0x6c3483, effect: { type: 'critMult', perLvl: 2 } },
+  { id: 26, name: '멈춘 모래시계', desc: '보스 제한시간 +4초', baseCost: 15, maxLevel: 8, color: 0xd6dbdf, effect: { type: 'bossTime', perLvl: 4000 } },
+  { id: 27, name: '꿈꾸는 수정구', desc: '오프라인 보상 +25%', baseCost: 12, maxLevel: 0, color: 0xd2b4de, effect: { type: 'offline', perLvl: 0.25 } },
+  { id: 28, name: '질풍의 깃털', desc: '스킬 지속시간 +8%', baseCost: 11, maxLevel: 15, color: 0xa3e4d7, effect: { type: 'skillDur', perLvl: 0.08 } },
+  { id: 29, name: '대상인의 금고', desc: '영웅 비용 -3%', baseCost: 13, maxLevel: 10, color: 0xf7dc6f, effect: { type: 'heroCost', perLvl: 0.03 } },
+  { id: 30, name: '초시계 태엽', desc: '스킬 쿨다운 -4%', baseCost: 12, maxLevel: 8, color: 0xaeb6bf, effect: { type: 'skillCd', perLvl: 0.04 } },
+  { id: 31, name: '영웅왕의 검명', desc: '스킬 효과 +8%', baseCost: 14, maxLevel: 10, color: 0xf8c471, effect: { type: 'skillPower', perLvl: 0.08 } },
+  { id: 32, name: '균열의 심장', desc: '탭 데미지 +150%', baseCost: 20, maxLevel: 0, color: 0xcb4335, effect: { type: 'tap', perLvl: 1.5 } },
+  { id: 33, name: '별의 성채', desc: '영웅 DPS +150%', baseCost: 20, maxLevel: 0, color: 0x2e86c1, effect: { type: 'dps', perLvl: 1.5 } },
+  { id: 34, name: '황금 나침반', desc: '골드 획득 +80%', baseCost: 18, maxLevel: 0, color: 0xf4d03f, effect: { type: 'gold', perLvl: 0.8 } },
+  { id: 35, name: '태양의 인장', desc: '모든 데미지 +40%', baseCost: 24, maxLevel: 0, color: 0xf5b041, effect: { type: 'allDmg', perLvl: 0.4 } },
+  { id: 36, name: '서리 문장', desc: '보스 제한시간 +6초', baseCost: 22, maxLevel: 5, color: 0x85c1e9, effect: { type: 'bossTime', perLvl: 6000 } },
+  { id: 37, name: '심연의 눈동자', desc: '크리티컬 배율 +3', baseCost: 21, maxLevel: 0, color: 0x1b2631, effect: { type: 'critMult', perLvl: 3 } },
+  { id: 38, name: '수호자의 맹세', desc: '오프라인 보상 +40%', baseCost: 19, maxLevel: 0, color: 0x73c6b6, effect: { type: 'offline', perLvl: 0.4 } },
+  { id: 39, name: '종언의 서', desc: '모든 데미지 +60%', baseCost: 30, maxLevel: 0, color: 0x4a235a, effect: { type: 'allDmg', perLvl: 0.6 } },
 ];
 
 /** 유물 다음 레벨 비용 (유물 개수) */
@@ -238,7 +270,7 @@ export function equipStatPct(rarity: number, stage: number): number {
 
 // --- 일일 퀘스트 ------------------------------------------------------------
 
-export type QuestMetric = 'kills' | 'bossKills' | 'skillUses';
+export type QuestMetric = 'kills' | 'bossKills' | 'skillUses' | 'drops' | 'ads' | 'prestiges';
 
 export interface QuestDef {
   id: number;
@@ -250,11 +282,31 @@ export interface QuestDef {
   amount: number;
 }
 
+/** 퀘스트 풀 6종 — 매일 이 중 3개가 날짜 시드로 선택된다 (DAILY_QUEST_COUNT) */
 export const DAILY_QUESTS: QuestDef[] = [
   { id: 0, desc: '몬스터 200마리 처치', metric: 'kills', target: 200, reward: 'gold', amount: 150 },
   { id: 1, desc: '보스 5회 처치', metric: 'bossKills', target: 5, reward: 'gold', amount: 400 },
   { id: 2, desc: '스킬 3회 사용', metric: 'skillUses', target: 3, reward: 'relics', amount: 2 },
+  { id: 3, desc: '장비/펫 알 2개 획득', metric: 'drops', target: 2, reward: 'gold', amount: 500 },
+  { id: 4, desc: '광고 2회 시청', metric: 'ads', target: 2, reward: 'relics', amount: 3 },
+  { id: 5, desc: '환생 1회', metric: 'prestiges', target: 1, reward: 'relics', amount: 4 },
 ];
+
+export const DAILY_QUEST_COUNT = 3;
+
+/** 날짜 문자열 기반 결정적 선택 — 모든 유저가 같은 날 같은 퀘스트를 받는다 */
+export function questsForDate(dateStr: string): number[] {
+  let h = 0;
+  for (const ch of dateStr) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const ids = DAILY_QUESTS.map((q) => q.id);
+  // 시드 셔플 (LCG)
+  for (let i = ids.length - 1; i > 0; i--) {
+    h = (h * 1664525 + 1013904223) >>> 0;
+    const j = h % (i + 1);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids.slice(0, DAILY_QUEST_COUNT).sort((a, b) => a - b);
+}
 
 // --- 스킬트리 (3계열 x 4티어 = 12노드, SP 소비) -------------------------------
 // SP 는 최고 스테이지 10마다 1 + 환생당 2 로 적립되며 환생해도 유지된다.
@@ -292,6 +344,13 @@ export const SKILL_TREE: TreeNodeDef[] = [
   { id: 9, branch: 2, tier: 1, name: '계약 협상', desc: '영웅 비용 -3%', maxLevel: 5, effect: { type: 'heroCost', perLvl: 0.03 }, requiresLevel: 3 },
   { id: 10, branch: 2, tier: 2, name: '시간 촉매', desc: '스킬 쿨다운 -5%', maxLevel: 5, effect: { type: 'skillCd', perLvl: 0.05 }, requiresLevel: 3 },
   { id: 11, branch: 2, tier: 3, name: '현자의 돌', desc: '스킬 지속 +10%', maxLevel: 5, effect: { type: 'skillDur', perLvl: 0.1 }, requiresLevel: 3 },
+  // T5/T6 — 후기 확장 (비용 6/7 SP per 레벨)
+  { id: 12, branch: 0, tier: 4, name: '연격의 극의', desc: '탭 데미지 +25%', maxLevel: 5, effect: { type: 'tap', perLvl: 0.25 }, requiresLevel: 3 },
+  { id: 13, branch: 0, tier: 5, name: '검신강림', desc: '모든 데미지 +10%', maxLevel: 5, effect: { type: 'allDmg', perLvl: 0.1 }, requiresLevel: 3 },
+  { id: 14, branch: 1, tier: 4, name: '총력전', desc: '영웅 DPS +25%', maxLevel: 5, effect: { type: 'dps', perLvl: 0.25 }, requiresLevel: 3 },
+  { id: 15, branch: 1, tier: 5, name: '왕의 군림', desc: '모든 데미지 +10%', maxLevel: 5, effect: { type: 'allDmg', perLvl: 0.1 }, requiresLevel: 3 },
+  { id: 16, branch: 2, tier: 4, name: '황금 폭풍', desc: '골드 획득 +20%', maxLevel: 5, effect: { type: 'gold', perLvl: 0.2 }, requiresLevel: 3 },
+  { id: 17, branch: 2, tier: 5, name: '연성의 극의', desc: '오프라인 보상 +15%', maxLevel: 5, effect: { type: 'offline', perLvl: 0.15 }, requiresLevel: 3 },
 ];
 
 /** 노드 레벨당 SP 비용 = 티어 + 1 */
@@ -322,6 +381,12 @@ export const PETS: PetDef[] = [
   { id: 3, name: '그림자삵', glyph: '삵', color: 0x8e44ad, bonus: { type: 'critChance', perLvl: 0.002 }, desc: '크리 확률 +0.2%p' },
   { id: 4, name: '이끼거북', glyph: '龜', color: 0x27ae60, bonus: { type: 'offline', perLvl: 0.04 }, desc: '오프라인 보상 +4%' },
   { id: 5, name: '꼬마정령', glyph: '정', color: 0xec7063, bonus: { type: 'allDmg', perLvl: 0.02 }, desc: '모든 데미지 +2%' },
+  { id: 6, name: '천둥망아지', glyph: '뇌', color: 0x5499c7, bonus: { type: 'critMult', perLvl: 0.2 }, desc: '크리 배율 +0.2' },
+  { id: 7, name: '재빠른담비', glyph: '담', color: 0xdc7633, bonus: { type: 'skillDur', perLvl: 0.02 }, desc: '스킬 지속 +2%' },
+  { id: 8, name: '수정갑충', glyph: '갑', color: 0xa569bd, bonus: { type: 'heroCost', perLvl: 0.005 }, desc: '영웅 비용 -0.5%' },
+  { id: 9, name: '용암두꺼비', glyph: '용', color: 0xc0392b, bonus: { type: 'tap', perLvl: 0.08 }, desc: '탭 데미지 +8%' },
+  { id: 10, name: '고요한올빼미', glyph: '올', color: 0x7f8c8d, bonus: { type: 'dps', perLvl: 0.08 }, desc: '영웅 DPS +8%' },
+  { id: 11, name: '무지개나비', glyph: '나', color: 0xf1948a, bonus: { type: 'allDmg', perLvl: 0.03 }, desc: '모든 데미지 +3%' },
 ];
 
 export const PET_EGG_DROP_CHANCE = 0.06; // 보스 처치당
@@ -390,6 +455,18 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 5, desc: '스테이지 100 도달', metric: 'maxStage', target: 100, rewardRelics: 12 },
   { id: 6, desc: '환생 3회', metric: 'prestiges', target: 3, rewardRelics: 8 },
   { id: 7, desc: '장비 10개 획득', metric: 'equipDrops', target: 10, rewardRelics: 6 },
+  { id: 8, desc: '탭 100,000회', metric: 'taps', target: 100_000, rewardRelics: 20 },
+  { id: 9, desc: '몬스터 10,000마리 처치', metric: 'kills', target: 10_000, rewardRelics: 12 },
+  { id: 10, desc: '몬스터 50,000마리 처치', metric: 'kills', target: 50_000, rewardRelics: 25 },
+  { id: 11, desc: '보스 500회 처치', metric: 'bossKills', target: 500, rewardRelics: 15 },
+  { id: 12, desc: '보스 2,000회 처치', metric: 'bossKills', target: 2_000, rewardRelics: 30 },
+  { id: 13, desc: '스테이지 150 도달', metric: 'maxStage', target: 150, rewardRelics: 18 },
+  { id: 14, desc: '스테이지 200 도달', metric: 'maxStage', target: 200, rewardRelics: 30 },
+  { id: 15, desc: '스테이지 300 도달', metric: 'maxStage', target: 300, rewardRelics: 50 },
+  { id: 16, desc: '환생 10회', metric: 'prestiges', target: 10, rewardRelics: 20 },
+  { id: 17, desc: '환생 25회', metric: 'prestiges', target: 25, rewardRelics: 40 },
+  { id: 18, desc: '장비 30개 획득', metric: 'equipDrops', target: 30, rewardRelics: 15 },
+  { id: 19, desc: '장비 100개 획득', metric: 'equipDrops', target: 100, rewardRelics: 35 },
 ];
 
 // --- 주말 토너먼트 (어비셜 방식: 제로베이스 24h+ 경쟁) ------------------------

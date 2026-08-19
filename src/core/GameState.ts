@@ -18,13 +18,14 @@ import {
   OFFLINE_CAP_SEC, OFFLINE_RATE, BOSS_TIME_LIMIT,
   BASE_CRIT_CHANCE, BASE_CRIT_MULT,
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT,
-  HERO_PASSIVE_UNLOCK, HERO_COST_DISCOUNT_CAP,
+  HERO_COST_DISCOUNT_CAP,
   AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
   EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, EQUIP_SET_BONUS, DAILY_QUESTS,
   ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS, PETS, PET_EGG_DROP_CHANCE,
   SKILL_TREE, SP_PER_STAGES, SP_PER_PRESTIGE, TREE_RESPEC_COST, SKILL_CD_CAP,
   treeNodeCost,
   GEM_SINKS, GOLD_PACK_KILLS, EQUIP_BOX_RATES, VIP_TIERS,
+  questsForDate,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
 import type { EquipItem, QuestMetric, EffectType, LifetimeMetric } from '../config.ts';
@@ -79,10 +80,14 @@ function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function freshDaily(): DailyState {
+interface DailyStateV8 extends DailyState { questIds: number[] }
+
+function freshDaily(): DailyStateV8 {
+  const date = todayStr();
   return {
-    date: todayStr(),
-    counters: { kills: 0, bossKills: 0, skillUses: 0 },
+    date,
+    questIds: questsForDate(date),
+    counters: { kills: 0, bossKills: 0, skillUses: 0, drops: 0, ads: 0, prestiges: 0 },
     claimed: DAILY_QUESTS.map(() => false),
   };
 }
@@ -123,7 +128,7 @@ export class GameState extends Emitter {
   goldBoostUntil = 0;
   /** 슬롯별 장착 장비 (보스 드롭, 상위 아이템 자동 교체) */
   equipment: (EquipItem | null)[] = EQUIP_SLOTS.map(() => null);
-  daily: DailyState = freshDaily();
+  daily: DailyStateV8 = freshDaily();
   /** 평생 누적 통계 (업적/분석용) */
   lifetime: Record<Exclude<LifetimeMetric, 'maxStage'>, number> = {
     taps: 0, kills: 0, bossKills: 0, prestiges: 0, equipDrops: 0,
@@ -173,8 +178,8 @@ export class GameState extends Emitter {
       if (a.effect.type === type) sum += this.artifactLevels[a.id] * a.effect.perLvl;
     }
     for (const h of HEROES) {
-      if (h.passive.type === type && this.heroLevels[h.id] >= HERO_PASSIVE_UNLOCK) {
-        sum += h.passive.value;
+      for (const ps of h.passives) {
+        if (ps.type === type && this.heroLevels[h.id] >= ps.unlockLevel) sum += ps.value;
       }
     }
     for (const pt of PETS) {
@@ -268,9 +273,9 @@ export class GameState extends Emitter {
       * (this.isSkillActive(1) ? this.amplifiedSkillMult(SKILL_DPS_MULT) : 1);
   }
 
-  /** 영웅 패시브 해금 여부 */
-  isHeroPassiveActive(id: number): boolean {
-    return this.heroLevels[id] >= HERO_PASSIVE_UNLOCK;
+  /** 영웅의 활성 패시브 수 (0~3) */
+  heroPassivesActive(id: number): number {
+    return HEROES[id].passives.filter((p) => this.heroLevels[id] >= p.unlockLevel).length;
   }
 
   prestigeRelics(): number { return relicsFor(this.maxStage); }
@@ -340,6 +345,11 @@ export class GameState extends Emitter {
   /** 사람의 실제 탭 1회 기록 (업적 통계) */
   recordTap(): void {
     this.lifetime.taps += 1;
+  }
+
+  /** 보상형 광고 시청 완료 기록 (일일 퀘스트용) */
+  recordAdWatch(): void {
+    this.bumpQuest('ads');
   }
 
   // --- 보석 / VIP -----------------------------------------------------------
@@ -578,6 +588,7 @@ export class GameState extends Emitter {
       stage: this.stage,
     };
     this.lifetime.equipDrops += 1;
+    this.bumpQuest('drops');
     const cur = this.equipment[slot];
     const equipped = !cur || item.statPct > cur.statPct;
     if (equipped) this.equipment[slot] = item;
@@ -591,6 +602,7 @@ export class GameState extends Emitter {
     if (Math.random() >= PET_EGG_DROP_CHANCE) return;
     const id = Math.floor(Math.random() * PETS.length);
     this.petLevels[id] += 1;
+    this.bumpQuest('drops');
     Analytics.track('pet_drop', { id, level: this.petLevels[id], stage: this.stage });
     this.emit('pet', id, this.petLevels[id]);
     this.emit('upgrade');
@@ -612,11 +624,17 @@ export class GameState extends Emitter {
     this.emit('quest');
   }
 
+  /** 오늘 활성화된 퀘스트 id 목록 (풀 6종 중 날짜 시드로 3종) */
+  todaysQuests(): number[] {
+    return this.daily.questIds;
+  }
+
   questProgress(id: number): number {
     return Math.min(this.daily.counters[DAILY_QUESTS[id].metric], DAILY_QUESTS[id].target);
   }
 
   canClaimQuest(id: number): boolean {
+    if (!this.daily.questIds.includes(id)) return false;
     return !this.daily.claimed[id] && this.questProgress(id) >= DAILY_QUESTS[id].target;
   }
 
@@ -691,6 +709,7 @@ export class GameState extends Emitter {
     const gain = this.prestigeGain();
     Analytics.track('prestige', { atStage: this.maxStage, gained: gain, totalRelics: this.relicsEarned + gain });
     this.lifetime.prestiges += 1;
+    this.bumpQuest('prestiges');
     this.gold = 0;
     this.stage = 1;
     this.kills = 0;
@@ -726,7 +745,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 7,
+      v: 8,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -804,14 +823,20 @@ export class GameState extends Emitter {
         };
       });
       // 일일 퀘스트 (날짜 다르면 리셋)
-      const dd = d.daily;
+      const dd = d.daily as Partial<DailyStateV8> | undefined;
       if (dd && typeof dd.date === 'string' && dd.date === todayStr()) {
         this.daily = {
           date: dd.date,
+          questIds: Array.isArray(dd.questIds) && dd.questIds.length
+            ? dd.questIds.filter((q) => Number.isInteger(q) && q >= 0 && q < DAILY_QUESTS.length)
+            : questsForDate(dd.date), // v7 이하: 오늘 로테이션으로 채움
           counters: {
             kills: Math.max(0, Math.floor(num(dd.counters?.kills, 0))),
             bossKills: Math.max(0, Math.floor(num(dd.counters?.bossKills, 0))),
             skillUses: Math.max(0, Math.floor(num(dd.counters?.skillUses, 0))),
+            drops: Math.max(0, Math.floor(num(dd.counters?.drops, 0))),
+            ads: Math.max(0, Math.floor(num(dd.counters?.ads, 0))),
+            prestiges: Math.max(0, Math.floor(num(dd.counters?.prestiges, 0))),
           },
           claimed: DAILY_QUESTS.map((q) => dd.claimed?.[q.id] === true),
         };

@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, PANEL_Y, SKILL_BAR_Y, TAB_Y,
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE,
-  EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE, HERO_PASSIVE_UNLOCK,
+  EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE,
 } from '../config.ts';
 import type { EquipItem } from '../config.ts';
 import {
@@ -37,11 +37,16 @@ interface HeroRow {
 const HEROES_PER_PAGE = 8;
 
 interface ArtifactRow {
+  bg: Phaser.GameObjects.Image;
+  icon: Phaser.GameObjects.Image;
   name: Phaser.GameObjects.Text;
   desc: Phaser.GameObjects.Text;
   btn: Phaser.GameObjects.Image;
   btnText: Phaser.GameObjects.Text;
 }
+
+const ARTIFACTS_PER_PAGE = 7;
+const ACH_PER_PAGE = 8;
 
 interface SkillBtn {
   base: Phaser.GameObjects.Image;
@@ -81,6 +86,13 @@ export class UIScene extends Phaser.Scene {
   private relicText!: Phaser.GameObjects.Text;
   private artifactRows: ArtifactRow[] = [];
   private artifactSubTab = 0; // 0=유물, 1=스킬트리
+  private artifactPage = 0;
+  private artifactPageLabel!: Phaser.GameObjects.Text;
+  private treeBranch = 0;
+  private treeBranchToggle: { img: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
+  private achPage = 0;
+  private achPageLabel!: Phaser.GameObjects.Text;
+  private achPagerParts: Phaser.GameObjects.GameObject[] = [];
   private artifactToggle: { img: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
   private artifactListParts: Phaser.GameObjects.GameObject[] = [];
   private treeParts: Phaser.GameObjects.GameObject[] = [];
@@ -151,7 +163,12 @@ export class UIScene extends Phaser.Scene {
     this.artifactListParts = [];
     this.treeParts = [];
     this.treeNodes = [];
+    this.treeBranchToggle = [];
     this.artifactSubTab = 0;
+    this.artifactPage = 0;
+    this.treeBranch = 0;
+    this.achPage = 0;
+    this.achPagerParts = [];
     this.rankToggle = [];
     this.questSubTab = 0;
     this.rankSubTab = 0;
@@ -250,7 +267,7 @@ export class UIScene extends Phaser.Scene {
       if (this.state.isGoldBoostActive()) return;
       this.showToast('광고 재생 중...');
       this.ads.offer('gold-boost', () => this.state.activateGoldBoost(), (ok) => {
-        if (ok) this.showToast('30분간 골드 획득 2배!');
+        if (ok) { this.state.recordAdWatch(); this.showToast('30분간 골드 획득 2배!'); }
       });
     });
     this.cdBtn = this.add.image(432, 120, 'btn-ad');
@@ -261,7 +278,7 @@ export class UIScene extends Phaser.Scene {
       if (!this.state.anySkillOnCooldown()) return;
       this.showToast('광고 재생 중...');
       this.ads.offer('cooldowns', () => this.state.resetSkillCooldowns(), (ok) => {
-        if (ok) this.showToast('스킬 쿨다운이 초기화되었습니다!');
+        if (ok) { this.state.recordAdWatch(); this.showToast('스킬 쿨다운이 초기화되었습니다!'); }
       });
     });
 
@@ -465,11 +482,11 @@ export class UIScene extends Phaser.Scene {
       this.questToggle.push({ img, txt });
     });
 
-    // 일일 퀘스트 3행
-    DAILY_QUESTS.forEach((q, i) => {
+    // 일일 퀘스트 3행 (내용은 오늘의 로테이션으로 refresh 에서 채움)
+    for (let i = 0; i < 3; i++) {
       const y = PANEL_Y + 122 + i * 90;
       const bg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6);
-      const desc = this.add.text(40, y - 18, q.desc, {
+      const desc = this.add.text(40, y - 18, '', {
         fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
       const prog = this.add.text(40, y + 14, '', {
@@ -479,21 +496,23 @@ export class UIScene extends Phaser.Scene {
       const btnText = this.add.text(GAME_WIDTH - 96, y, '받기', {
         fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
+      const rowIdx = i;
       btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.state.claimQuest(q.id)) {
+        const qid = this.state.todaysQuests()[rowIdx];
+        if (qid !== undefined && this.state.claimQuest(qid)) {
           this.pop(btn);
           this.showToast('퀘스트 보상을 받았습니다!');
         }
       });
       c.add([bg, desc, prog, btn, btnText]);
       this.questRows.push({ desc, prog, btn, btnText, bg });
-    });
+    }
 
-    // 업적 8행 (컴팩트)
-    ACHIEVEMENTS.forEach((a, i) => {
+    // 업적 8행 (컴팩트, 페이지 기반 — 20종)
+    for (let i = 0; i < ACH_PER_PAGE; i++) {
       const y = PANEL_Y + 100 + i * 47;
       const bg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 0.82);
-      const desc = this.add.text(40, y - 9, a.desc, {
+      const desc = this.add.text(40, y - 9, '', {
         fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
       const prog = this.add.text(40, y + 12, '', {
@@ -503,15 +522,42 @@ export class UIScene extends Phaser.Scene {
       const btnText = this.add.text(GAME_WIDTH - 88, y, '', {
         fontFamily: FONT, fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
+      const rowIdx = i;
       btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.state.claimAch(a.id)) {
+        const id = this.achPage * ACH_PER_PAGE + rowIdx;
+        const a = ACHIEVEMENTS[id];
+        if (a && this.state.claimAch(a.id)) {
           this.pop(btn);
           this.showToast(`업적 달성! 유물 +${a.rewardRelics}`);
         }
       });
       c.add([bg, desc, prog, btn, btnText]);
       this.achRows.push({ desc, prog, btn, btnText, bg });
+    }
+
+    // 업적 페이저
+    const achPages = Math.ceil(ACHIEVEMENTS.length / ACH_PER_PAGE);
+    const pY = GAME_HEIGHT - 20;
+    const prev = this.add.text(280, pY, '◀', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    this.achPageLabel = this.add.text(GAME_WIDTH / 2, pY, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#9a8bb8',
+    }).setOrigin(0.5);
+    const next = this.add.text(440, pY, '▶', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    prev.on('pointerdown', () => {
+      this.achPage = (this.achPage + achPages - 1) % achPages;
+      this.refreshPanel();
     });
+    next.on('pointerdown', () => {
+      this.achPage = (this.achPage + 1) % achPages;
+      this.refreshPanel();
+    });
+    c.add([prev, this.achPageLabel, next]);
+    // 업적 서브탭에서만 보이도록 achRows 쪽 부속으로 함께 토글
+    this.achPagerParts = [prev, this.achPageLabel, next];
     return c;
   }
 
@@ -615,31 +661,54 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
     c.add(this.relicText);
 
-    ARTIFACTS.forEach((a, i) => {
-      const y = PANEL_Y + 118 + i * 62;
-      const rowBg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.15);
-      const icon = this.add.image(42, y, 'artifact' + a.id);
-      c.add([rowBg, icon]);
-      this.artifactListParts.push(rowBg, icon);
-      const name = this.add.text(76, y - 13, '', {
-        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
+    // 유물 리스트: 7행 x 페이지 (40종)
+    for (let i = 0; i < ARTIFACTS_PER_PAGE; i++) {
+      const y = PANEL_Y + 118 + i * 58;
+      const rowBg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.06);
+      const icon = this.add.image(42, y, 'artifact0');
+      const name = this.add.text(76, y - 12, '', {
+        fontFamily: FONT, fontSize: '18px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
-      const desc = this.add.text(76, y + 13, '', {
-        fontFamily: FONT, fontSize: '15px', color: '#c9b8e8',
+      const desc = this.add.text(76, y + 12, '', {
+        fontFamily: FONT, fontSize: '14px', color: '#c9b8e8',
       }).setOrigin(0, 0.5);
-      const btn = this.add.image(GAME_WIDTH - 96, y, 'btn-buy');
+      const btn = this.add.image(GAME_WIDTH - 96, y, 'btn-buy').setScale(1, 0.95);
       const btnText = this.add.text(GAME_WIDTH - 96, y, '', {
-        fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+        fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
+      const rowIdx = i;
       btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.state.tryBuyArtifact(a.id)) this.pop(btn);
+        const id = this.artifactPage * ARTIFACTS_PER_PAGE + rowIdx;
+        if (id < ARTIFACTS.length && this.state.tryBuyArtifact(id)) this.pop(btn);
       });
-      c.add([name, desc, btn, btnText]);
-      this.artifactRows.push({ name, desc, btn, btnText });
-      this.artifactListParts.push(name, desc, btn, btnText);
+      c.add([rowBg, icon, name, desc, btn, btnText]);
+      this.artifactRows.push({ name, desc, btn, btnText, bg: rowBg, icon });
+      this.artifactListParts.push(rowBg, icon, name, desc, btn, btnText);
+    }
+    // 유물 페이저
+    const apY = GAME_HEIGHT - 20;
+    const aPages = Math.ceil(ARTIFACTS.length / ARTIFACTS_PER_PAGE);
+    const aPrev = this.add.text(280, apY, '◀', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    this.artifactPageLabel = this.add.text(GAME_WIDTH / 2, apY, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#9a8bb8',
+    }).setOrigin(0.5);
+    const aNext = this.add.text(440, apY, '▶', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    aPrev.on('pointerdown', () => {
+      this.artifactPage = (this.artifactPage + aPages - 1) % aPages;
+      this.refreshPanel();
     });
+    aNext.on('pointerdown', () => {
+      this.artifactPage = (this.artifactPage + 1) % aPages;
+      this.refreshPanel();
+    });
+    c.add([aPrev, this.artifactPageLabel, aNext]);
+    this.artifactListParts.push(aPrev, this.artifactPageLabel, aNext);
 
-    // --- 스킬트리 뷰 ---
+    // --- 스킬트리 뷰: 계열 토글 + 선택 계열 6노드 (2열 x 3행) ---
     this.spText = this.add.text(60, PANEL_Y + 112, '', {
       fontFamily: FONT, fontSize: '19px', color: '#f9e79f', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
@@ -660,40 +729,52 @@ export class UIScene extends Phaser.Scene {
     c.add([this.spText, this.respecBtn, this.respecText]);
     this.treeParts.push(this.spText, this.respecBtn, this.respecText);
 
-    // 계열 라벨 + 노드 그리드 (3열 x 4행)
+    // 계열 토글 3버튼
     TREE_BRANCH_NAMES.forEach((bn, b) => {
-      const lbl = this.add.text(128 + b * 232, PANEL_Y + 148, bn, {
-        fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+      const x = 130 + b * 230;
+      const img = this.add.image(x, PANEL_Y + 158, b === 0 ? 'tab-on' : 'tab-off').setScale(1.5, 0.85);
+      const txt = this.add.text(x, PANEL_Y + 158, bn, {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-      c.add(lbl);
-      this.treeParts.push(lbl);
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        this.treeBranch = b;
+        this.refreshPanel();
+      });
+      c.add([img, txt]);
+      this.treeParts.push(img, txt);
+      this.treeBranchToggle.push({ img, txt });
     });
-    SKILL_TREE.forEach((n) => {
-      const x = 128 + n.branch * 232;
-      const y = PANEL_Y + 206 + n.tier * 92; // 마지막 행이 화면 안에 들어오는 간격
-      const bg = this.add.image(x, y, 'node').setScale(1, 0.92);
-      const name = this.add.text(x, y - 28, n.name, {
-        fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+
+    // 노드 셀 6개 (2열 x 3행) — 선택 계열의 티어 0~5
+    for (let i = 0; i < 6; i++) {
+      const x = 190 + (i % 2) * 340;
+      const y = PANEL_Y + 250 + Math.floor(i / 2) * 120;
+      const bg = this.add.image(x, y, 'node').setScale(1.45, 1.12);
+      const name = this.add.text(x, y - 34, '', {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-      const lvl = this.add.text(x, y - 6, '', {
+      const lvl = this.add.text(x, y - 8, '', {
         fontFamily: FONT, fontSize: '14px', color: '#f9e79f',
       }).setOrigin(0.5);
-      const desc = this.add.text(x, y + 20, `${n.desc}\nSP ${treeNodeCost(n)}`, {
-        fontFamily: FONT, fontSize: '12px', color: '#9a8bb8', align: 'center', lineSpacing: 2,
+      const desc = this.add.text(x, y + 24, '', {
+        fontFamily: FONT, fontSize: '13px', color: '#9a8bb8', align: 'center', lineSpacing: 2,
       }).setOrigin(0.5);
+      const cellIdx = i;
       bg.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.state.tryBuyNode(n.id)) {
+        const node = SKILL_TREE.filter((n) => n.branch === this.treeBranch)[cellIdx];
+        if (!node) return;
+        if (this.state.tryBuyNode(node.id)) {
           this.pop(bg);
-        } else if (!this.state.isNodeUnlocked(n.id)) {
-          this.showToast(`선행 노드 레벨 ${n.requiresLevel} 필요`);
-        } else if (this.state.spAvailable() < treeNodeCost(n)) {
+        } else if (!this.state.isNodeUnlocked(node.id)) {
+          this.showToast(`선행 노드 레벨 ${node.requiresLevel} 필요`);
+        } else if (this.state.spAvailable() < treeNodeCost(node)) {
           this.showToast('SP가 부족합니다 (스테이지 10마다 +1, 환생 +2)');
         }
       });
       c.add([bg, name, lvl, desc]);
       this.treeParts.push(bg, name, lvl, desc);
       this.treeNodes.push({ bg, name, lvl, desc });
-    });
+    }
     return c;
   }
 
@@ -996,9 +1077,11 @@ export class UIScene extends Phaser.Scene {
       row.icon.setTexture('hero' + h.id);
       row.initial.setText(h.name.charAt(0));
       row.name.setText(`${h.name} · ${h.title}`);
-      const passive = st.isHeroPassiveActive(h.id)
-        ? ` · ${h.passive.desc}`
-        : (lvl > 0 ? ` · ${HERO_PASSIVE_UNLOCK}렙: ${h.passive.desc}` : '');
+      const active = st.heroPassivesActive(h.id);
+      const next = h.passives.find((ps) => lvl < ps.unlockLevel);
+      const passive = active > 0
+        ? ` · P${active}/${h.passives.length} ${h.passives[active - 1].desc}`
+        : (lvl > 0 && next ? ` · ${next.unlockLevel}렙: ${next.desc}` : '');
       row.sub.setText(lvl === 0 ? '미고용' : `Lv.${lvl} · DPS ${fmt(st.heroDps(h.id))}${passive}`);
       row.btnText.setText(lvl === 0 ? `고용 ${fmt(st.heroCost(h.id))}` : fmt(st.heroCost(h.id)));
     });
@@ -1009,23 +1092,36 @@ export class UIScene extends Phaser.Scene {
     const showArts = this.artifactSubTab === 0;
     this.artifactListParts.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(showArts));
     this.treeParts.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(!showArts));
-    ARTIFACTS.forEach((a, i) => {
-      const row = this.artifactRows[i];
-      if (!showArts) return;
-      const lvl = st.artifactLevels[a.id];
-      row.name.setText(`${a.name}  Lv.${lvl}${a.maxLevel > 0 ? `/${a.maxLevel}` : ''}`);
-      row.desc.setText(`레벨당 ${a.desc}`);
-      row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : `유물 ${fmt(st.artifactCost(a.id))}`);
-    });
-    if (!showArts) {
+    if (showArts) {
+      const aPages = Math.ceil(ARTIFACTS.length / 7);
+      this.artifactPageLabel.setText(`${this.artifactPage + 1} / ${aPages}`);
+      this.artifactRows.forEach((row, i) => {
+        const id = this.artifactPage * 7 + i;
+        const a = ARTIFACTS[id];
+        [row.bg, row.icon, row.name, row.desc, row.btn, row.btnText]
+          .forEach((o) => o.setVisible(!!a));
+        if (!a) return;
+        row.icon.setTexture('artifact' + (a.id % 20)); // 아이콘 20종 재사용
+        const lvl = st.artifactLevels[a.id];
+        row.name.setText(`${a.name}  Lv.${lvl}${a.maxLevel > 0 ? `/${a.maxLevel}` : ''}`);
+        row.desc.setText(`레벨당 ${a.desc}`);
+        row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : `유물 ${fmt(st.artifactCost(a.id))}`);
+      });
+    } else {
       this.spText.setText(`SP ${st.spAvailable()} / 누적 ${st.spEarned()}`);
       this.setEnabled(this.respecBtn, st.spSpent() > 0 && st.relics >= TREE_RESPEC_COST);
-      SKILL_TREE.forEach((n, i) => {
-        const node = this.treeNodes[i];
+      this.treeBranchToggle.forEach((t, b) => t.img.setTexture(b === this.treeBranch ? 'tab-on' : 'tab-off'));
+      const branchNodes = SKILL_TREE.filter((n) => n.branch === this.treeBranch);
+      this.treeNodes.forEach((node, i) => {
+        const n = branchNodes[i];
+        [node.bg, node.name, node.lvl, node.desc].forEach((o) => o.setVisible(!!n));
+        if (!n) return;
         const lvl = st.treeLevels[n.id];
         const unlocked = st.isNodeUnlocked(n.id);
         const canBuy = st.canBuyNode(n.id);
+        node.name.setText(n.name);
         node.lvl.setText(`Lv.${lvl} / ${n.maxLevel}`);
+        node.desc.setText(`${n.desc} · SP ${treeNodeCost(n)}`);
         node.bg.setAlpha(unlocked ? (canBuy ? 1 : 0.75) : 0.3);
         node.name.setAlpha(unlocked ? 1 : 0.4);
         node.lvl.setColor(lvl >= n.maxLevel ? '#7bed8d' : canBuy ? '#f9e79f' : '#9a8bb8');
@@ -1058,25 +1154,34 @@ export class UIScene extends Phaser.Scene {
     st.ensureDaily();
     this.questToggle.forEach((t, i) => t.img.setTexture(i === this.questSubTab ? 'tab-on' : 'tab-off'));
     const showDaily = this.questSubTab === 0;
-    DAILY_QUESTS.forEach((q, i) => {
-      const row = this.questRows[i];
-      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(showDaily));
-      if (!showDaily) return;
+    const todays = st.todaysQuests();
+    this.questRows.forEach((row, i) => {
+      const qid = todays[i];
+      const q = qid !== undefined ? DAILY_QUESTS[qid] : undefined;
+      const vis = showDaily && !!q;
+      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(vis));
+      if (!vis || !q) return;
+      row.desc.setText(q.desc);
       const prog = st.questProgress(q.id);
       const claimed = st.daily.claimed[q.id];
       const rewardTxt = q.reward === 'gold' ? '골드 보상' : `유물 ${q.amount}개`;
       row.prog.setText(claimed ? '완료!' : `${prog} / ${q.target} · ${rewardTxt}`);
       row.btnText.setText(claimed ? '완료' : '받기');
-      this.setEnabled(row.btn, showDaily && st.canClaimQuest(q.id));
+      this.setEnabled(row.btn, st.canClaimQuest(q.id));
     });
-    ACHIEVEMENTS.forEach((a, i) => {
-      const row = this.achRows[i];
-      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(!showDaily));
-      if (showDaily) return;
+    const achPages = Math.ceil(ACHIEVEMENTS.length / 8);
+    this.achPageLabel?.setText(`${this.achPage + 1} / ${achPages}`);
+    this.achPagerParts.forEach((o) => (o as Phaser.GameObjects.Text).setVisible(!showDaily));
+    this.achRows.forEach((row, i) => {
+      const a = ACHIEVEMENTS[this.achPage * 8 + i];
+      const vis = !showDaily && !!a;
+      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(vis));
+      if (!vis || !a) return;
+      row.desc.setText(a.desc);
       const claimed = st.achClaimed[a.id];
       row.prog.setText(claimed ? '완료!' : `${fmt(st.achProgress(a.id))} / ${fmt(a.target)} · 유물 ${a.rewardRelics}`);
       row.btnText.setText(claimed ? '완료' : '받기');
-      this.setEnabled(row.btn, !showDaily && st.canClaimAch(a.id));
+      this.setEnabled(row.btn, st.canClaimAch(a.id));
     });
     this.refreshTourneyCard();
     PETS.forEach((pt, i) => {
@@ -1112,11 +1217,15 @@ export class UIScene extends Phaser.Scene {
       const id = this.heroPage * HEROES_PER_PAGE + i;
       if (id < HEROES.length) this.setEnabled(row.btn, st.gold >= st.heroCost(id));
     });
-    ARTIFACTS.forEach((a, i) => {
-      this.setEnabled(
-        this.artifactRows[i].btn,
-        this.artifactSubTab === 0 && !st.isArtifactMaxed(a.id) && st.relics >= st.artifactCost(a.id),
-      );
+    this.artifactRows.forEach((row, i) => {
+      const id = this.artifactPage * 7 + i;
+      const a = ARTIFACTS[id];
+      if (a) {
+        this.setEnabled(
+          row.btn,
+          this.artifactSubTab === 0 && !st.isArtifactMaxed(a.id) && st.relics >= st.artifactCost(a.id),
+        );
+      }
     });
   }
 
@@ -1277,7 +1386,7 @@ export class UIScene extends Phaser.Scene {
             this.showToast('광고 재생 중...');
             // 기본 보상은 이미 지급됨 — 광고 시청 시 동일량 추가 지급
             this.ads.offer('offline-x2', () => this.state.addGold(gold), (ok) => {
-              if (ok) this.showToast(`+${fmt(gold)} 골드 추가 지급!`);
+              if (ok) { this.state.recordAdWatch(); this.showToast(`+${fmt(gold)} 골드 추가 지급!`); }
             });
           },
         },
