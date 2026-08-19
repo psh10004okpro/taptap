@@ -6,17 +6,29 @@
 1. https://supabase.com 에서 프로젝트 생성
 2. **Authentication → Providers → Anonymous Sign-ins 활성화** (익명 로그인 필수)
 
+CLI 는 전역 설치 없이 `npx supabase` 로 쓴다 (검증본: 2.115.0).
+
 ## 2. 스키마 적용
 ```bash
-supabase link --project-ref <PROJECT_REF>
-supabase db push          # migrations/0001_leaderboard.sql 적용
+export SUPABASE_ACCESS_TOKEN=<Account > Access Tokens 에서 발급>
+npx supabase link --project-ref <PROJECT_REF>
+npx supabase db push          # migrations/000{1,2,3} 순서대로 적용
 ```
 
 ## 3. Edge Function 배포
 ```bash
-supabase functions deploy submit-score
+npx supabase functions deploy submit-score clan-ops verify-purchase
 ```
 (SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY 는 기본 제공 시크릿)
+
+## 3-1. 배포 검증 (필수)
+```bash
+npm run verify:supabase              # 익명로그인·공개조회·RLS·입력검증·정상제출
+npm run verify:supabase -- --slow    # + 레이트리밋 30초·하향·진행속도 상한
+```
+`.env.local` 의 URL/anon key 를 읽는다. 하나라도 실패하면 배포가 덜 된 것이다 —
+익명 로그인 비활성화, db push 누락, 함수 미배포가 흔한 원인.
+검사용 익명 계정이 남으므로 Authentication > Users 에서 정리할 것.
 
 ## 4. 클라이언트 환경변수
 `.env.local` (커밋 금지):
