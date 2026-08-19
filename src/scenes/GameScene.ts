@@ -5,10 +5,11 @@
 import Phaser from 'phaser';
 import {
   COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
-  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, monsterHp, zoneFor,
+  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
+import { Sfx } from '../sfx.ts';
 
 const FLOAT_POOL = 24;
 const COIN_POOL = 16;
@@ -33,6 +34,7 @@ export class GameScene extends Phaser.Scene {
   private bgImage!: Phaser.GameObjects.Image;
   private spawnTimer: Phaser.Time.TimerEvent | null = null; // 스폰 예약 단일화
 
+  private killFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private floatPool: Phaser.GameObjects.Text[] = [];
   private floatIdx = 0;
   private coinPool: Phaser.GameObjects.Image[] = [];
@@ -50,6 +52,18 @@ export class GameScene extends Phaser.Scene {
 
     this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, 592, 190, 40, 0x000000, 0.35);
     this.monster = this.add.image(COMBAT_CENTER.x, COMBAT_CENTER.y, 'monster0').setOrigin(0.5, 0.78);
+
+    // 처치 파티클 — 이미터 1개 재사용 (풀 규칙: 매 처치마다 생성 금지)
+    this.killFx = this.add.particles(0, 0, 'spark', {
+      speed: { min: 130, max: 340 },
+      angle: { min: 200, max: 340 },
+      gravityY: 750,
+      lifespan: { min: 280, max: 560 },
+      scale: { start: 1.1, end: 0 },
+      rotate: { min: 0, max: 360 },
+      tint: [0xffe08a, 0xffb020, 0xffffff],
+      emitting: false,
+    }).setDepth(18);
 
     // HP 바 + 이름
     this.nameText = this.add.text(COMBAT_CENTER.x, TOP_BAR_H + 26, '', {
@@ -94,8 +108,13 @@ export class GameScene extends Phaser.Scene {
     // 환생 시 몬스터 리셋
     this.state.on('prestige', () => { this.spawnTimer?.remove(false); this.spawnTimer = null; this.spawn(); });
 
-    // 천상의 일격: 즉발 대미지 버스트 (스킬트리 강화 반영)
+    // 스킬 발동 연출 + 천상의 일격 즉발 대미지 (스킬트리 강화 반영)
     this.state.on('skill', (...args: unknown[]) => {
+      const id = args[0] as number;
+      if (id !== 4) {
+        const c = Phaser.Display.Color.ValueToColor(SKILLS[id]?.color ?? 0xffffff);
+        this.cameras.main.flash(130, c.red, c.green, c.blue);
+      }
       if (args[0] !== 4 || this.dead) return;
       const dmg = Math.round(
         this.state.tapDamage() * HEAVENLY_STRIKE_MULT * this.state.skillPowerMult(),
@@ -140,14 +159,19 @@ export class GameScene extends Phaser.Scene {
       this.zoneOverlay.setFillStyle(zone.tint, 0.22);
     }
     if (this.isBoss) {
+      Sfx.play('bossSpawn');
+      // 보스 등장 연출: 흔들림 + 붉은 섬광 + 이름 펀치
+      this.cameras.main.shake(200, 0.006);
+      this.cameras.main.flash(150, 110, 20, 30);
       this.monster.setTexture('boss');
-      this.nameText.setText(zone.bossName).setColor('#ff9c9c');
+      this.nameText.setText(zone.bossName).setColor('#ff9c9c').setScale(1.4);
+      this.tweens.add({ targets: this.nameText, scale: 1, duration: 260, ease: 'Back.Out' });
       this.bossLimit = st.bossTimeLimit();
       this.bossDeadline = this.time.now + this.bossLimit;
     } else {
       const slot = (st.stage * 7 + st.kills * 3) % zone.monsters.length;
       this.monster.setTexture('monster' + zone.monsters[slot]);
-      this.nameText.setText(zone.monsterNames[slot]).setColor('#ffffff');
+      this.nameText.setText(zone.monsterNames[slot]).setColor('#ffffff').setScale(1);
       this.bossDeadline = 0;
       this.game.events.emit('boss-timer', -1);
     }
@@ -177,6 +201,8 @@ export class GameScene extends Phaser.Scene {
     if (this.dead) return;
 
     const crit = Math.random() < this.state.critChance();
+    Sfx.play(crit ? 'crit' : 'tap');
+    if (crit) this.cameras.main.shake(70, 0.004);
     const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
     this.applyDamage(dmg, crit, x, Math.min(y, PANEL_Y - 120));
     // 몬스터 반동 — 기준 스케일 대비 절대값으로, 연타 시 누적 수축 방지
@@ -256,11 +282,14 @@ export class GameScene extends Phaser.Scene {
     if (this.dead) return;
     this.dead = true;
     const wasBoss = this.isBoss;
+    Sfx.play(wasBoss ? 'bossWin' : 'kill');
+    Sfx.play('coin');
     if (wasBoss) {
       this.cameras.main.shake(220, 0.012);
       this.game.events.emit('boss-timer', -1);
     }
     this.burstCoins(wasBoss ? 8 : 4);
+    this.killFx.explode(wasBoss ? 26 : 12, this.monster.x, this.monster.y - 60);
     this.tweens.killTweensOf(this.monster);
     this.tweens.add({
       targets: this.monster, alpha: 0, scaleY: this.baseScale * 0.3,
@@ -274,6 +303,7 @@ export class GameScene extends Phaser.Scene {
   private bossEscape(): void {
     if (this.dead) return;
     this.dead = true;
+    Sfx.play('bossFail');
     this.game.events.emit('boss-timer', -1);
     this.tweens.add({
       targets: this.monster, x: 900, alpha: 0, duration: 320, ease: 'Quad.In',

@@ -39,6 +39,7 @@ declare global {
         grantGems(n: number, purchased: boolean): void; vipTier(): number;
         gemCooldownReset(): boolean; gemGoldPack(): boolean;
         gemEquipBox(): boolean; gemRespecTree(): boolean; offlineCapSec(): number;
+        tut: number; confirmTutorial(): void; recordKill(isBoss: boolean): void;
       };
       tourney: {
         status(now?: Date): { kind: string; opensInMs?: number; closesInMs?: number };
@@ -57,6 +58,7 @@ declare global {
         validate(s: unknown): string[];
         exportSave(s: unknown): string;
       };
+      sfx: { isEnabled(): boolean; toggle(): boolean };
     };
   }
 }
@@ -914,4 +916,77 @@ test('저장/복원: 리로드 후 진행 상황이 유지된다', async ({ page
   expect(restored.tapLevel).toBe(snap.tapLevel);
   expect(restored.gold).toBeGreaterThanOrEqual(snap.gold); // 오프라인 보상으로 늘 수 있음
   expect(errors).toHaveLength(0);
+});
+
+test('사운드: 기본 활성, 음소거 토글이 영속되고 탭 사운드 경로에 에러가 없다', async ({ page }) => {
+  const errors = await setup(page);
+
+  // 기본값: 사운드 켜짐 + 탭(사운드 재생 경로)에서 에러 없음
+  expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(true);
+  await tapGame(page, 360, 470, 5);
+
+  // 상단바 ♪ 버튼으로 음소거
+  await tapGame(page, 676, 122);
+  expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(false);
+  expect(await page.evaluate(() => localStorage.getItem('taptap-sfx-muted'))).toBe('1');
+
+  // 리로드 후에도 음소거 유지
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(false);
+
+  // 훅으로 재활성화
+  expect(await page.evaluate(() => window.__taptap!.sfx.toggle())).toBe(true);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('온보딩: 새 게임 5단계가 순서대로 진행되고 기존 세이브는 생략된다', async ({ page }) => {
+  const errors = await setup(page);
+
+  // 새 게임은 0단계에서 시작
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(0);
+
+  // 0단계: 탭 10회 → 1단계
+  await tapGame(page, 360, 470, 10);
+  await expect.poll(() => page.evaluate(() => window.__taptap!.state.tut)).toBe(1);
+
+  // 1단계: 탭 강화 구매 → 2단계
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1e6);
+    s.tryBuyTap();
+  });
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(2);
+
+  // 2단계: 영웅 고용 → 3단계
+  await page.evaluate(() => window.__taptap!.state.tryBuyHero(0));
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(3);
+
+  // 3단계: 첫 보스 처치 → 4단계 (환생 안내)
+  await page.evaluate(() => window.__taptap!.state.recordKill(true));
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(4);
+
+  // 4단계: 배너 탭으로 닫기 → 완료(99)
+  await tapGame(page, 360, 612);
+  await expect.poll(() => page.evaluate(() => window.__taptap!.state.tut)).toBe(99);
+
+  // 완료 상태는 저장/복원 유지
+  await page.evaluate(() => window.__taptap!.state.save());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(99);
+
+  // v8 이하(tut 필드 없음) 세이브 마이그레이션: 기존 유저는 튜토리얼 생략
+  await page.evaluate(() => {
+    const raw = JSON.parse(window.__taptap!.dev.exportSave(window.__taptap!.state)) as
+      Record<string, unknown>;
+    delete raw.tut;
+    raw.v = 8;
+    raw.gen = 999; // 세대 가드가 beforeunload 자동저장을 무시하게
+    localStorage.setItem('taptap-titans-v1', JSON.stringify(raw));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(99);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });

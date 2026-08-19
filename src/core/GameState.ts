@@ -25,6 +25,7 @@ import {
   SKILL_TREE, SP_PER_STAGES, SP_PER_PRESTIGE, TREE_RESPEC_COST, SKILL_CD_CAP,
   treeNodeCost,
   GEM_SINKS, GOLD_PACK_KILLS, EQUIP_BOX_RATES, VIP_TIERS,
+  TUTORIAL_STEPS, TUT_TAP_GOAL,
   questsForDate,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
@@ -65,6 +66,7 @@ interface SaveData {
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
+  tut: number; // v9: 온보딩 단계 (99 = 완료)
 }
 
 const SAVE_KEY = 'taptap-titans-v1';
@@ -145,6 +147,9 @@ export class GameState extends Emitter {
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
+  /** 온보딩 단계 (0..TUTORIAL_STEPS.length-1, TUT_DONE = 완료). 새 게임만 0 에서 시작 */
+  tut = 0;
+  static readonly TUT_DONE = 99;
   /** 마지막 세이브 시각 — 오프라인 보상 계산용 */
   lastSeen = Date.now();
   /** 세이브 세대. 다른 탭이 더 새 세대를 쓰면 이 인스턴스는 stale 이 되어 저장을 멈춘다 */
@@ -345,6 +350,22 @@ export class GameState extends Emitter {
   /** 사람의 실제 탭 1회 기록 (업적 통계) */
   recordTap(): void {
     this.lifetime.taps += 1;
+    if (this.tut === 0 && this.lifetime.taps >= TUT_TAP_GOAL) this.tutAdvance(0);
+  }
+
+  // --- 온보딩 튜토리얼 -------------------------------------------------------
+
+  /** 해당 단계가 현재 단계일 때만 다음으로 진행 + 이벤트/계측 */
+  private tutAdvance(step: number): void {
+    if (this.tut !== step) return;
+    this.tut = step + 1 >= TUTORIAL_STEPS.length ? GameState.TUT_DONE : step + 1;
+    Analytics.track('tutorial_step', { done: step, next: this.tut });
+    this.emit('tutorial', this.tut);
+  }
+
+  /** 마지막 안내(환생 소개) 배너를 탭해서 닫기 */
+  confirmTutorial(): void {
+    this.tutAdvance(TUTORIAL_STEPS.length - 1);
   }
 
   /** 보상형 광고 시청 완료 기록 (일일 퀘스트용) */
@@ -506,6 +527,7 @@ export class GameState extends Emitter {
     if (isBoss) {
       this.bumpQuest('bossKills');
       this.lifetime.bossKills += 1;
+      this.tutAdvance(3);
       Analytics.track('stage_clear', {
         stage: this.stage,
         dwellMs: Date.now() - this.stageEnteredAt,
@@ -665,6 +687,7 @@ export class GameState extends Emitter {
     if (this.gold < cost) return false;
     this.gold -= cost;
     this.tapLevel += 1;
+    this.tutAdvance(1);
     Analytics.track('upgrade_buy', { kind: 'tap', level: this.tapLevel, cost });
     this.emit('gold', this.gold);
     this.emit('upgrade');
@@ -676,6 +699,7 @@ export class GameState extends Emitter {
     if (this.gold < cost) return false;
     this.gold -= cost;
     this.heroLevels[id] += 1;
+    this.tutAdvance(2);
     Analytics.track('upgrade_buy', { kind: 'hero', id, level: this.heroLevels[id], cost });
     this.emit('gold', this.gold);
     this.emit('upgrade');
@@ -710,6 +734,11 @@ export class GameState extends Emitter {
     Analytics.track('prestige', { atStage: this.maxStage, gained: gain, totalRelics: this.relicsEarned + gain });
     this.lifetime.prestiges += 1;
     this.bumpQuest('prestiges');
+    // 환생까지 해봤다면 온보딩은 끝난 것 — 단계와 무관하게 종료
+    if (this.tut !== GameState.TUT_DONE) {
+      this.tut = GameState.TUT_DONE;
+      this.emit('tutorial', this.tut);
+    }
     this.gold = 0;
     this.stage = 1;
     this.kills = 0;
@@ -745,7 +774,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 8,
+      v: 9,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -770,6 +799,7 @@ export class GameState extends Emitter {
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
+      tut: this.tut,
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -859,6 +889,9 @@ export class GameState extends Emitter {
       this.gemsPurchased = Math.max(0, Math.floor(num(d.gemsPurchased, 0)));
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
+      // v8 이하(필드 없음)는 기존 유저 — 튜토리얼 생략. 범위 밖 값도 완료로 정화
+      const tut = Math.floor(num(d.tut, GameState.TUT_DONE));
+      this.tut = tut >= 0 && tut < TUTORIAL_STEPS.length ? tut : GameState.TUT_DONE;
       // 보스전 도중 저장이었다면 파밍부터 재개
       this.mode = 'farm';
       this.stageEnteredAt = now;

@@ -363,6 +363,17 @@ export const SP_PER_PRESTIGE = 2;     // 환생당 SP 2
 export const TREE_RESPEC_COST = 10;   // 리스펙 비용 (유물)
 export const SKILL_CD_CAP = 0.4;      // 쿨다운 감소 상한
 
+// --- 온보딩 튜토리얼 (단계 텍스트 — 진행 로직은 GameState) --------------------
+
+export const TUTORIAL_STEPS = [
+  '몬스터를 탭해 공격하세요! (10회)',
+  '골드가 모이면 [탭 공격력]을 올려보세요',
+  '영웅을 고용하면 자동으로 싸워줍니다',
+  '몬스터를 처치하고 보스에 도전하세요!',
+  '막히면 [환생]! 유물로 영구히 강해집니다 (탭하여 닫기)',
+] as const;
+export const TUT_TAP_GOAL = 10; // 1단계: 필요한 탭 수
+
 // --- 펫 (보스가 떨어뜨리는 알로 획득/성장, 영구 보너스) -----------------------
 
 export interface PetDef {

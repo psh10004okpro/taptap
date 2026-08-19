@@ -3,7 +3,7 @@
 // UI(데브 패널)와 E2E 테스트가 같은 함수를 사용해 시나리오를 재현한다.
 // 활성화는 URL ?dev=1 (main.ts) — 일반 유저 경로에는 노출되지 않는다.
 // ---------------------------------------------------------------------------
-import { HEROES, SKILLS, ARTIFACTS, PETS, EQUIP_SLOTS } from '../config.ts';
+import { HEROES, SKILLS, ARTIFACTS, PETS, EQUIP_SLOTS, TUTORIAL_STEPS } from '../config.ts';
 import { GameState } from './GameState.ts';
 
 export type PresetName = 'fresh' | 'early' | 'mid' | 'prestige-ready' | 'endgame';
@@ -39,6 +39,7 @@ function resetProgress(s: GameState): void {
 /** 상태 프리셋 적용 후 즉시 저장. 화면 갱신 이벤트까지 발행한다. */
 export function applyPreset(s: GameState, name: PresetName): void {
   resetProgress(s);
+  s.tut = name === 'fresh' ? 0 : GameState.TUT_DONE; // 진행 프리셋은 온보딩 생략
   switch (name) {
     case 'fresh':
       break;
@@ -156,5 +157,8 @@ export function validate(s: GameState): string[] {
   if (s.spAvailable() < 0) bad.push(`SP 음수: ${s.spAvailable()}`);
   if (s.heroLevels.some((l) => l < 0 || !Number.isFinite(l))) bad.push('heroLevels 비정상');
   if (s.critChance() > 0.75) bad.push(`critChance 상한 초과: ${s.critChance()}`);
+  if (!((s.tut >= 0 && s.tut < TUTORIAL_STEPS.length) || s.tut === GameState.TUT_DONE)) {
+    bad.push(`tut 범위 밖: ${s.tut}`);
+  }
   return bad;
 }

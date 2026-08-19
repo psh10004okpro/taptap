@@ -16,6 +16,7 @@
 | 이벤트 | 파라미터 | 목적 |
 |---|---|---|
 | `session_start` | resumed, offlineSec, stage, maxStage, relics | DAU/복귀 간격, 이탈 시점의 진행도 |
+| `tutorial_step` | done(완료한 단계), next(다음 단계, 99=완료) | 온보딩 퍼널 — 단계별 이탈 지점 탐지 |
 | `save_stale` | — | 멀티탭 충돌 빈도 (지원 이슈 예측) |
 
 ### 진행/벽 (핵심 리텐션 지표)

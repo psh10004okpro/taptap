@@ -12,10 +12,12 @@ import type { EquipItem } from '../config.ts';
 import {
   ACHIEVEMENTS, PETS, SKILL_TREE, TREE_BRANCH_NAMES, TREE_RESPEC_COST, treeNodeCost, zoneFor,
   GEM_PACKS, GEM_SINKS, EQUIP_BOX_RATES, RARITIES as RARITY_DEFS, VIP_TIERS,
+  TUTORIAL_STEPS,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import { IapService, MockIapProvider } from '../core/Iap.ts';
+import { Sfx } from '../sfx.ts';
 import * as Tournament from '../core/Tournament.ts';
 import * as Season from '../core/Season.ts';
 import * as ClanBoss from '../core/ClanBoss.ts';
@@ -186,6 +188,7 @@ export class UIScene extends Phaser.Scene {
     this.buildSkillBar();
     this.buildBossButton();
     this.buildPanel();
+    this.buildTutorial();
     this.bindEvents();
     this.refreshAll();
     this.setTab(0);
@@ -267,7 +270,7 @@ export class UIScene extends Phaser.Scene {
       if (this.state.isGoldBoostActive()) return;
       this.showToast('광고 재생 중...');
       this.ads.offer('gold-boost', () => this.state.activateGoldBoost(), (ok) => {
-        if (ok) { this.state.recordAdWatch(); this.showToast('30분간 골드 획득 2배!'); }
+        if (ok) { Sfx.play('claim'); this.state.recordAdWatch(); this.showToast('30분간 골드 획득 2배!'); }
       });
     });
     this.cdBtn = this.add.image(432, 120, 'btn-ad');
@@ -278,8 +281,22 @@ export class UIScene extends Phaser.Scene {
       if (!this.state.anySkillOnCooldown()) return;
       this.showToast('광고 재생 중...');
       this.ads.offer('cooldowns', () => this.state.resetSkillCooldowns(), (ok) => {
-        if (ok) { this.state.recordAdWatch(); this.showToast('스킬 쿨다운이 초기화되었습니다!'); }
+        if (ok) { Sfx.play('claim'); this.state.recordAdWatch(); this.showToast('스킬 쿨다운이 초기화되었습니다!'); }
       });
+    });
+
+    // 음소거 토글 (기기 로컬 설정 — 세이브와 무관)
+    const muteBtn = this.add.text(GAME_WIDTH - 44, 122, '', {
+      fontFamily: FONT, fontSize: '22px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const paintMute = () => muteBtn
+      .setText(Sfx.isEnabled() ? '♪ ON' : '♪ OFF')
+      .setColor(Sfx.isEnabled() ? '#9fd8ff' : '#6a6a7a');
+    paintMute();
+    muteBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      Sfx.toggle();
+      paintMute();
+      if (Sfx.isEnabled()) Sfx.play('tab');
     });
 
     // 환생 버튼
@@ -290,6 +307,49 @@ export class UIScene extends Phaser.Scene {
     this.prestigeBtn = this.add.container(GAME_WIDTH - 78, 50, [btn, this.prestigeLabel]);
     btn.setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.showPrestigePopup());
+  }
+
+  // --- 온보딩 튜토리얼 배너 --------------------------------------------------
+
+  private tutBg!: Phaser.GameObjects.Image;
+  private tutText!: Phaser.GameObjects.Text;
+
+  private buildTutorial(): void {
+    this.tutBg = this.add.image(GAME_WIDTH / 2, 612, 'tut-banner').setDepth(40);
+    this.tutText = this.add.text(GAME_WIDTH / 2, 612, '', {
+      fontFamily: FONT, fontSize: '21px', color: '#ffe9a8', fontStyle: 'bold',
+      align: 'center', wordWrap: { width: 560 },
+    }).setOrigin(0.5).setDepth(41);
+    // 마지막 단계(환생 안내)에서만 탭으로 닫기
+    this.tutBg.on('pointerdown', () => {
+      Sfx.play('tab');
+      this.state.confirmTutorial();
+    });
+    this.state.on('tutorial', () => this.refreshTutorial());
+    this.refreshTutorial();
+  }
+
+  private refreshTutorial(): void {
+    if (!this.tutBg) return;
+    const step = this.state.tut;
+    const show = step >= 0 && step < TUTORIAL_STEPS.length;
+    this.tutBg.setVisible(show);
+    this.tutText.setVisible(show);
+    if (!show) {
+      this.tutBg.disableInteractive();
+      return;
+    }
+    this.tutText.setText(TUTORIAL_STEPS[step]);
+    // 배너가 전투 탭을 가로채지 않게, 확인이 필요한 마지막 단계만 인터랙티브
+    if (step === TUTORIAL_STEPS.length - 1) {
+      this.tutBg.setInteractive({ useHandCursor: true });
+    } else {
+      this.tutBg.disableInteractive();
+    }
+    // 단계 전환 펀치
+    this.tutBg.setScale(0.94);
+    this.tutText.setScale(0.94);
+    this.tweens.add({ targets: [this.tutBg, this.tutText], scale: 1, duration: 160, ease: 'Back.Out' });
   }
 
   // --- 스킬바 --------------------------------------------------------------
@@ -310,6 +370,7 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(7);
       base.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         if (this.state.tryActivateSkill(s.id)) {
+          Sfx.play('skill');
           this.tweens.add({ targets: [base, glyph], scale: 1.15, duration: 90, yoyo: true });
           this.showToast(`${s.name}! ${s.desc}`);
         } else if (!this.state.isSkillUnlocked(s.id)) {
@@ -390,7 +451,10 @@ export class UIScene extends Phaser.Scene {
       const txt = this.add.text(x, TAB_Y, label, {
         fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
-      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.setTab(i));
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        Sfx.play('tab');
+        this.setTab(i);
+      });
       this.tabButtons.push({ img, label: txt });
     });
 
@@ -500,6 +564,7 @@ export class UIScene extends Phaser.Scene {
       btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         const qid = this.state.todaysQuests()[rowIdx];
         if (qid !== undefined && this.state.claimQuest(qid)) {
+          Sfx.play('claim');
           this.pop(btn);
           this.showToast('퀘스트 보상을 받았습니다!');
         }
@@ -527,6 +592,7 @@ export class UIScene extends Phaser.Scene {
         const id = this.achPage * ACH_PER_PAGE + rowIdx;
         const a = ACHIEVEMENTS[id];
         if (a && this.state.claimAch(a.id)) {
+          Sfx.play('claim');
           this.pop(btn);
           this.showToast(`업적 달성! 유물 +${a.rewardRelics}`);
         }
@@ -992,10 +1058,14 @@ export class UIScene extends Phaser.Scene {
 
   private bindEvents(): void {
     this.state.on('gold', () => this.refreshGold());
-    this.state.on('upgrade', () => { this.refreshPanel(); this.refreshGold(); });
-    this.state.on('stage', () => this.refreshStage());
+    this.state.on('upgrade', () => { Sfx.play('buy'); this.refreshPanel(); this.refreshGold(); });
+    this.state.on('stage', () => {
+      this.refreshStage();
+      // 스테이지 상승 펀치
+      this.tweens.add({ targets: this.stageText, scale: 1.18, duration: 90, yoyo: true });
+    });
     this.state.on('mode', () => this.refreshStage());
-    this.state.on('prestige', () => this.refreshAll());
+    this.state.on('prestige', () => { Sfx.play('prestige'); this.refreshAll(); });
     this.state.on('quest', () => this.refreshPanel());
     this.state.on('pet', (...args: unknown[]) => {
       const pt = PETS[args[0] as number];
@@ -1324,6 +1394,7 @@ export class UIScene extends Phaser.Scene {
               st.emit('upgrade');
             }
           }).then((r) => {
+            if (r.ok) Sfx.play('claim');
             this.showToast(r.ok ? '구매 완료! 보석이 지급되었습니다.' : (r.reason ?? '구매 실패'));
             this.closeShop();
             this.refreshGold();

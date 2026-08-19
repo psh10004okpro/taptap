@@ -212,6 +212,14 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture('btn-prestige', 132, 50);
     g.destroy();
 
+    // 처치 파티클 스파크 (다이아몬드 조각)
+    g = this.add.graphics();
+    g.fillStyle(0xffffff, 1);
+    g.fillTriangle(6, 0, 12, 6, 0, 6);
+    g.fillTriangle(0, 6, 12, 6, 6, 12);
+    g.generateTexture('spark', 12, 12);
+    g.destroy();
+
     // 탭 파문 링
     g = this.add.graphics();
     g.lineStyle(5, 0xffffff, 0.9);
@@ -349,6 +357,15 @@ export class BootScene extends Phaser.Scene {
     g.lineStyle(2, 0x8e44ad, 0.7);
     g.strokeRoundedRect(1, 1, 206, 94, 12);
     g.generateTexture('node', 208, 96);
+    g.destroy();
+
+    // 튜토리얼 배너
+    g = this.add.graphics();
+    g.fillStyle(0x1d1630, 0.94);
+    g.fillRoundedRect(0, 0, 600, 56, 14);
+    g.lineStyle(2, 0xf1c40f, 0.9);
+    g.strokeRoundedRect(1, 1, 598, 54, 14);
+    g.generateTexture('tut-banner', 600, 56);
     g.destroy();
 
     // 오버레이 딤
