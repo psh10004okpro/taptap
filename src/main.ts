@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from './config';
-import { GameState } from './core/GameState';
-import { Analytics } from './core/Analytics';
-import { BootScene } from './scenes/BootScene';
-import { GameScene } from './scenes/GameScene';
-import { UIScene } from './scenes/UIScene';
+import { GAME_WIDTH, GAME_HEIGHT } from './config.ts';
+import { GameState } from './core/GameState.ts';
+import { Analytics } from './core/Analytics.ts';
+import { BootScene } from './scenes/BootScene.ts';
+import { GameScene } from './scenes/GameScene.ts';
+import { UIScene } from './scenes/UIScene.ts';
 
 declare global {
   interface Window {

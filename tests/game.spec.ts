@@ -379,6 +379,70 @@ test('일일 퀘스트: 카운터 누적 → 달성 → 보상 수령', async ({
   expect(errors).toHaveLength(0);
 });
 
+test('P1 영웅 패시브: 20레벨 도달 시 보너스가 활성화된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1e9);
+    for (let i = 0; i < 30; i++) s.tryBuyTap(); // 기반 탭뎀 확보
+    const dmg0 = s.tapDamage();
+    for (let i = 0; i < 20; i++) s.tryBuyHero(0); // 아린 20렙 → 패시브: 탭 +10%
+    const dmg1 = s.tapDamage();
+    return { dmg0, dmg1, ratio: dmg1 / dmg0 };
+  });
+  expect(r.ratio).toBeGreaterThan(1.05); // +10% 반영 (반올림 여유)
+  expect(errors).toHaveLength(0);
+});
+
+test('P1 유물 다양화: 영웅 비용 할인 유물이 실제 비용을 낮춘다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addRelics(1000);
+    const cost0 = s.heroCost(5);
+    for (let i = 0; i < 10; i++) s.tryBuyArtifact(8); // 상인의 인장 -2%/lvl
+    const cost1 = s.heroCost(5);
+    return { cost0, cost1 };
+  });
+  expect(r.cost1).toBeLessThan(r.cost0 * 0.85); // -20%
+  expect(errors).toHaveLength(0);
+});
+
+test('P1 장비 세트: 동일 등급 3슬롯이면 모든 데미지 보너스', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1e6);
+    for (let i = 0; i < 20; i++) s.tryBuyTap();
+    const dmg0 = s.tapDamage();
+    s.equipment[0] = { slot: 0, rarity: 2, statPct: 0, stage: 1 };
+    s.equipment[1] = { slot: 1, rarity: 2, statPct: 0, stage: 1 };
+    s.equipment[2] = { slot: 2, rarity: 2, statPct: 0, stage: 1 }; // 영웅 세트 +35%
+    const dmg1 = s.tapDamage();
+    const mixed = (() => {
+      s.equipment[2] = { slot: 2, rarity: 1, statPct: 0, stage: 1 };
+      return s.tapDamage();
+    })();
+    return { dmg0, dmg1, mixed };
+  });
+  expect(r.dmg1).toBeGreaterThan(r.dmg0 * 1.3); // +35%
+  expect(r.mixed).toBeLessThan(r.dmg1);          // 등급 섞이면 세트 해제
+  expect(errors).toHaveLength(0);
+});
+
+test('P1 영웅 페이징: 2페이지에서 상위 영웅 정보가 표시되고 구매가 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  await page.evaluate(() => window.__taptap!.state.addGold(1e15));
+  await tapGame(page, 440, 1260); // ▶ 다음 페이지
+  await page.waitForTimeout(300);
+  await tapGame(page, 624, 848); // 2페이지 첫 행(영웅 8) 고용 버튼
+  await page.waitForTimeout(300);
+  const lvl = await page.evaluate(() => window.__taptap!.state.heroLevels[8]);
+  expect(lvl).toBeGreaterThanOrEqual(1);
+  await page.screenshot({ path: 'screenshots/11-hero-page2.png' });
+  expect(errors).toHaveLength(0);
+});
+
 test('저장/복원: 리로드 후 진행 상황이 유지된다', async ({ page }) => {
   const errors = await setup(page);
   await page.evaluate(() => {

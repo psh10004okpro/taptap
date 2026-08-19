@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
-// 밸런스 시뮬레이터 엔진 — 렌더링 없이 config 곡선만으로 진행을 재현한다.
+// 밸런스 시뮬레이터 엔진 — 실제 GameState 를 그대로 사용해 로직 드리프트를 없앤다.
+// (GameState 는 Phaser 비의존 순수 TS. localStorage 접근은 내부 try/catch 로
+//  Node 에서도 안전하다. save/load 는 시뮬에서 호출하지 않는다.)
 // 실행: node sim/run.ts   (Node 22+ 네이티브 타입 스트리핑)
 //
 // 플레이어 모델: "탐욕적 준최적 플레이어"
 //  - 매 스테이지 클리어(또는 파밍 청크)마다 ΔDPS/비용 최대 업그레이드를 반복 구매
-//  - 스킬은 해금 시 평균 가동률(지속/쿨다운)로 환산해 상시 배율로 근사
-//  - 성장 정체(벽) + 의미 있는 유물 보상이면 환생, 유물은 ROI 순으로 소비
+//  - 스킬은 평균 가동률(지속/쿨다운)로 상시 배율 근사 (GameState 스킬은 비활성 유지)
+//  - 정체 + 의미 있는 유물 보상이면 환생, 유물은 ROI 순 소비
 // ---------------------------------------------------------------------------
 import {
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
-  BASE_CRIT_CHANCE, BASE_CRIT_MULT, BOSS_TIME_LIMIT,
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT, SHADOW_CLONE_TAPS_PER_SEC,
-  ARTIFACT_TAP_PER_LVL, ARTIFACT_DPS_PER_LVL, ARTIFACT_GOLD_PER_LVL,
-  ARTIFACT_CRIT_CHANCE_PER_LVL, ARTIFACT_CRIT_MULT_PER_LVL, ARTIFACT_BOSS_TIME_PER_LVL,
-  monsterHp, killGold, tapDamageAt, tapCost, heroCost, heroDps, relicsFor, artifactCost,
+  monsterHp, killGold, relicsFor,
 } from '../src/config.ts';
+import { GameState } from '../src/core/GameState.ts';
 
 export interface SimProfile {
   name: string;
@@ -41,110 +41,85 @@ const SOFT_WALL_SEC = 300;        // 5분/스테이지 = 소프트 벽
 const HARD_WALL_SEC = 1800;       // 30분/스테이지 = 하드 벽
 const PRESTIGE_STALL_SEC = 240;   // 이만큼 정체 + 보상 조건이면 환생
 
-class SimState {
-  gold = 0;
-  stage = 1;
-  tapLevel = 0;
-  heroLevels = HEROES.map(() => 0);
-  relics = 0;
-  relicsEarned = 0;
-  artifactLevels = ARTIFACTS.map(() => 0);
-  maxStage = 1;
+/** 스킬 평균 가동률 배율 (해금된 것만, useSkills 프로필 한정) */
+function skillAvg(s: GameState, p: SimProfile, id: number, mult: number): number {
+  if (!p.useSkills || !s.isSkillUnlocked(id)) return 1;
+  const u = SKILLS[id].duration / SKILLS[id].cooldown;
+  return 1 + u * (mult - 1);
+}
 
-  readonly p: SimProfile;
-  constructor(p: SimProfile) { this.p = p; }
+/** 탭 + 영웅을 합친 실효 DPS (스킬 평균 가동률 포함) */
+function effDps(s: GameState, p: SimProfile): number {
+  const critFactor = 1 + s.critChance() * (s.critMult() - 1);
+  const cloneTps = (p.useSkills && s.isSkillUnlocked(3))
+    ? (SKILLS[3].duration / SKILLS[3].cooldown) * SHADOW_CLONE_TAPS_PER_SEC : 0;
+  const tapDps = s.tapDamage() * skillAvg(s, p, 0, SKILL_TAP_MULT) * critFactor
+    * (p.tapsPerSec + cloneTps);
+  const heroDps = s.totalDps() * skillAvg(s, p, 1, SKILL_DPS_MULT);
+  return tapDps + heroDps;
+}
 
-  // --- 평균 가동률 스킬 배율 (해금된 것만) ---------------------------------
-  private uptime(id: number): number {
-    if (!this.p.useSkills || this.maxStage < SKILLS[id].unlockStage) return 0;
-    return SKILLS[id].duration / SKILLS[id].cooldown;
-  }
-  private avgMult(id: number, mult: number): number {
-    const u = this.uptime(id);
-    return 1 + u * (mult - 1);
-  }
+function goldMult(s: GameState, p: SimProfile): number {
+  return s.goldMult() * skillAvg(s, p, 2, SKILL_GOLD_MULT);
+}
 
-  critFactor(): number {
-    const chance = Math.min(0.5, BASE_CRIT_CHANCE + this.artifactLevels[3] * ARTIFACT_CRIT_CHANCE_PER_LVL);
-    const mult = BASE_CRIT_MULT + this.artifactLevels[4] * ARTIFACT_CRIT_MULT_PER_LVL;
-    return 1 + chance * (mult - 1);
-  }
+/** ΔDPS/비용 최대 후보를 반복 구매 */
+function spendGold(s: GameState, p: SimProfile): void {
+  for (let guard = 0; guard < 4000; guard++) {
+    let bestGain = 0; let bestCost = Infinity; let bestBuy: (() => void) | null = null;
+    const base = effDps(s, p);
 
-  /** 탭 + 영웅을 합친 실효 DPS */
-  effDps(): number {
-    const artTap = 1 + this.artifactLevels[0] * ARTIFACT_TAP_PER_LVL;
-    const artDps = 1 + this.artifactLevels[1] * ARTIFACT_DPS_PER_LVL;
-    const cloneTps = this.uptime(3) > 0 ? this.uptime(3) * SHADOW_CLONE_TAPS_PER_SEC : 0;
-    const tapDmg = tapDamageAt(this.tapLevel) * artTap * this.avgMult(0, SKILL_TAP_MULT) * this.critFactor();
-    const tapDps = tapDmg * (this.p.tapsPerSec + cloneTps);
-    let hero = 0;
-    for (const h of HEROES) hero += heroDps(h, this.heroLevels[h.id]);
-    hero *= artDps * this.avgMult(1, SKILL_DPS_MULT);
-    return tapDps + hero;
-  }
-
-  goldMult(): number {
-    return (1 + this.artifactLevels[2] * ARTIFACT_GOLD_PER_LVL) * this.avgMult(2, SKILL_GOLD_MULT);
-  }
-
-  bossLimitSec(): number {
-    return (BOSS_TIME_LIMIT + this.artifactLevels[5] * ARTIFACT_BOSS_TIME_PER_LVL) / 1000;
-  }
-
-  // --- 탐욕 구매 ------------------------------------------------------------
-  /** 현재 골드로 ΔDPS/비용 최대 후보를 반복 구매 */
-  spendGold(): void {
-    for (let guard = 0; guard < 4000; guard++) {
-      let bestGain = 0; let bestCost = Infinity; let bestBuy: (() => void) | null = null;
-      const base = this.effDps();
-
-      const cT = tapCost(this.tapLevel);
-      if (cT <= this.gold) {
-        this.tapLevel++; const g = this.effDps() - base; this.tapLevel--;
-        if (g / cT > bestGain / bestCost) { bestGain = g; bestCost = cT; bestBuy = () => { this.tapLevel++; }; }
-      }
-      for (const h of HEROES) {
-        const c = heroCost(h, this.heroLevels[h.id]);
-        if (c > this.gold) continue;
-        this.heroLevels[h.id]++; const g = this.effDps() - base; this.heroLevels[h.id]--;
-        if (g / c > bestGain / bestCost) { bestGain = g; bestCost = c; bestBuy = () => { this.heroLevels[h.id]++; }; }
-      }
-      if (!bestBuy || bestGain <= 0) return;
-      this.gold -= bestCost;
-      bestBuy();
+    const cT = s.tapCost();
+    if (cT <= s.gold) {
+      s.tapLevel++; const g = effDps(s, p) - base; s.tapLevel--;
+      if (g / cT > bestGain / bestCost) { bestGain = g; bestCost = cT; bestBuy = () => { s.gold -= cT; s.tapLevel++; }; }
     }
-  }
-
-  /** 유물을 ROI 순으로 소비 (DPS 직결 0/1/3/4 우선, 보스 막힘 시 5) */
-  spendRelics(bossBlocked: boolean): void {
-    for (let guard = 0; guard < 500; guard++) {
-      let bestGain = 0; let bestCost = Infinity; let bestId = -1;
-      const base = this.effDps();
-      for (const a of ARTIFACTS) {
-        if (a.maxLevel > 0 && this.artifactLevels[a.id] >= a.maxLevel) continue;
-        const c = artifactCost(a, this.artifactLevels[a.id]);
-        if (c > this.relics) continue;
-        if (a.id === 2) continue; // 골드 유물은 아래 별도 규칙
-        if (a.id === 5 && !bossBlocked) continue;
-        this.artifactLevels[a.id]++;
-        const g = a.id === 5 ? base * 0.02 : this.effDps() - base; // 시간의 모래는 소가치 평가
-        this.artifactLevels[a.id]--;
-        if (g / c > bestGain / bestCost) { bestGain = g; bestCost = c; bestId = a.id; }
-      }
-      // 골드 유물: DPS 유물이 비싸질수록 상대 가치 상승 — 잔여 유물의 20% 한도로 구매
-      if (bestId < 0) {
-        const c2 = artifactCost(ARTIFACTS[2], this.artifactLevels[2]);
-        if (c2 <= this.relics * 0.5) { this.relics -= c2; this.artifactLevels[2]++; continue; }
-        return;
-      }
-      this.relics -= bestCost;
-      this.artifactLevels[bestId]++;
+    for (const h of HEROES) {
+      const c = s.heroCost(h.id);
+      if (c > s.gold) continue;
+      s.heroLevels[h.id]++; const g = effDps(s, p) - base; s.heroLevels[h.id]--;
+      if (g / c > bestGain / bestCost) { bestGain = g; bestCost = c; bestBuy = () => { s.gold -= c; s.heroLevels[h.id]++; }; }
     }
+    if (!bestBuy || bestGain <= 0) return;
+    bestBuy();
   }
 }
 
-export function simulate(profile: SimProfile, simDays: number, stageCap = 400): SimResult {
-  const s = new SimState(profile);
+/** 유물을 ROI 순으로 소비 */
+function spendRelics(s: GameState, p: SimProfile, bossBlocked: boolean): void {
+  for (let guard = 0; guard < 800; guard++) {
+    let bestGain = 0; let bestCost = Infinity; let bestId = -1;
+    const base = effDps(s, p);
+    for (const a of ARTIFACTS) {
+      if (s.isArtifactMaxed(a.id)) continue;
+      const c = s.artifactCost(a.id);
+      if (c > s.relics) continue;
+      const t = a.effect.type;
+      if (t === 'gold' || t === 'offline') continue;         // 아래 별도 규칙
+      if (t === 'bossTime' && !bossBlocked) continue;
+      s.artifactLevels[a.id]++;
+      const g = t === 'bossTime' ? base * 0.02 : effDps(s, p) - base;
+      s.artifactLevels[a.id]--;
+      if (g / c > bestGain / bestCost) { bestGain = g; bestCost = c; bestId = a.id; }
+    }
+    if (bestId < 0) {
+      // DPS 유물이 소진되면 골드 유물에 잔여의 절반 한도로 투자
+      const goldArts = ARTIFACTS.filter((a) => a.effect.type === 'gold' && !s.isArtifactMaxed(a.id));
+      const cheap = goldArts.map((a) => ({ a, c: s.artifactCost(a.id) }))
+        .sort((x, y) => x.c - y.c)[0];
+      if (cheap && cheap.c <= s.relics * 0.5) {
+        s.relics -= cheap.c; s.artifactLevels[cheap.a.id]++;
+        continue;
+      }
+      return;
+    }
+    s.relics -= bestCost;
+    s.artifactLevels[bestId]++;
+  }
+}
+
+export function simulate(profile: SimProfile, simDays: number, stageCap = 500): SimResult {
+  const s = new GameState();
   const capSec = simDays * 86400;
   let t = 0;
   let prestigeNo = 0;
@@ -153,21 +128,20 @@ export function simulate(profile: SimProfile, simDays: number, stageCap = 400): 
   const clears: StageClear[] = [];
   const prestiges: PrestigeEvent[] = [];
   const walls: Wall[] = [];
-  const seenGlobal = new Set<number>(); // 전역 첫 도달 기록 (환생 반복 구간 제외)
+  const seenGlobal = new Set<number>();
 
   const killTime = (hp: number, dps: number) => Math.max(hp / Math.max(dps, 1e-9), MIN_KILL_SEC);
 
   while (t < capSec && s.stage <= stageCap) {
-    const dps = s.effDps();
-    const gm = s.goldMult();
+    const dps = effDps(s, profile);
+    const gm = goldMult(s, profile);
     const normalHp = monsterHp(s.stage, false);
     const bossHp = monsterHp(s.stage, true);
     const tNormals = (MONSTERS_PER_STAGE - 1) * killTime(normalHp, dps);
     const bossKillSec = killTime(bossHp, dps);
-    const bossOk = bossKillSec <= s.bossLimitSec();
+    const bossOk = bossKillSec <= s.bossTimeLimit() / 1000;
 
     if (bossOk) {
-      // 스테이지 클리어
       t += tNormals + bossKillSec;
       s.gold += ((MONSTERS_PER_STAGE - 1) * killGold(s.stage, false) + killGold(s.stage, true)) * gm;
       const dwell = t - lastStageUpAt;
@@ -180,17 +154,16 @@ export function simulate(profile: SimProfile, simDays: number, stageCap = 400): 
       s.stage += 1;
       s.maxStage = Math.max(s.maxStage, s.stage);
       lastStageUpAt = t;
-      s.spendGold();
+      spendGold(s, profile);
       continue;
     }
 
-    // 보스 불가 → 일반 몬스터 파밍 청크
+    // 보스 불가 → 파밍 청크
     const goldRate = (killGold(s.stage, false) * gm) / killTime(normalHp, dps);
     t += DECISION_FARM_SEC;
     s.gold += goldRate * DECISION_FARM_SEC;
-    s.spendGold();
+    spendGold(s, profile);
 
-    // 환생 판단: 정체 + 의미 있는 유물
     const gain = relicsFor(s.maxStage) - s.relicsEarned;
     const stalled = t - lastStageUpAt > PRESTIGE_STALL_SEC;
     const meaningful = gain >= Math.max(2, Math.floor(s.relicsEarned * 0.15));
@@ -203,14 +176,12 @@ export function simulate(profile: SimProfile, simDays: number, stageCap = 400): 
       s.stage = 1;
       s.tapLevel = 0;
       s.heroLevels = HEROES.map(() => 0);
-      s.spendRelics(true);
+      spendRelics(s, profile, true);
       lastStageUpAt = t;
     } else if (t - lastStageUpAt > HARD_WALL_SEC * 4 && s.maxStage < PRESTIGE_MIN_STAGE) {
-      // 환생도 못 하는 초반 완전 정체 — 기록하고 종료
       walls.push({ stage: s.stage, dwellSec: t - lastStageUpAt, kind: 'hard', prestigeNo });
       break;
     } else if (t - lastStageUpAt > HARD_WALL_SEC * 8) {
-      // 환생 후에도 뚫리지 않는 종말 벽 — 종료
       walls.push({ stage: s.stage, dwellSec: t - lastStageUpAt, kind: 'hard', prestigeNo });
       break;
     }

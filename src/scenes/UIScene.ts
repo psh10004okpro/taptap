@@ -6,23 +6,27 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, PANEL_Y, SKILL_BAR_Y, TAB_Y,
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE,
-  EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE,
-} from '../config';
-import type { EquipItem } from '../config';
-import { GameState } from '../core/GameState';
-import { AdRewards } from '../core/AdRewards';
-import { Leaderboard, LbEntry } from '../core/Leaderboard';
-import { fmt, fmtDuration } from '../core/format';
+  EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE, HERO_PASSIVE_UNLOCK,
+} from '../config.ts';
+import type { EquipItem } from '../config.ts';
+import { GameState } from '../core/GameState.ts';
+import { AdRewards } from '../core/AdRewards.ts';
+import { Leaderboard, LbEntry } from '../core/Leaderboard.ts';
+import { fmt, fmtDuration } from '../core/format.ts';
 
 const FONT = 'Trebuchet MS, Malgun Gothic, sans-serif';
 const TAB_NAMES = ['영웅', '장비', '유물', '퀘스트', '랭킹'] as const;
 
 interface HeroRow {
+  icon: Phaser.GameObjects.Image;
+  initial: Phaser.GameObjects.Text;
   name: Phaser.GameObjects.Text;
   sub: Phaser.GameObjects.Text;
   btn: Phaser.GameObjects.Image;
   btnText: Phaser.GameObjects.Text;
 }
+
+const HEROES_PER_PAGE = 8;
 
 interface ArtifactRow {
   name: Phaser.GameObjects.Text;
@@ -63,6 +67,8 @@ export class UIScene extends Phaser.Scene {
   private tapBtn!: Phaser.GameObjects.Image;
   private tapBtnText!: Phaser.GameObjects.Text;
   private heroRows: HeroRow[] = [];
+  private heroPage = 0;
+  private heroPageLabel!: Phaser.GameObjects.Text;
 
   private relicText!: Phaser.GameObjects.Text;
   private artifactRows: ArtifactRow[] = [];
@@ -76,6 +82,7 @@ export class UIScene extends Phaser.Scene {
   private boostBtn!: Phaser.GameObjects.Image;
   private cdBtn!: Phaser.GameObjects.Image;
   private equipRows: { title: Phaser.GameObjects.Text; sub: Phaser.GameObjects.Text }[] = [];
+  private equipSetText!: Phaser.GameObjects.Text;
   private questRows: {
     desc: Phaser.GameObjects.Text; prog: Phaser.GameObjects.Text;
     btn: Phaser.GameObjects.Image; btnText: Phaser.GameObjects.Text;
@@ -93,6 +100,7 @@ export class UIScene extends Phaser.Scene {
     this.rankLines = [];
     this.equipRows = [];
     this.questRows = [];
+    this.heroPage = 0;
     this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
     this.lb = new Leaderboard();
@@ -300,9 +308,13 @@ export class UIScene extends Phaser.Scene {
       `보스 처치 시 ${Math.round(EQUIP_DROP_CHANCE * 100)}% 확률로 장비 드롭 · 상위 장비 자동 장착`, {
         fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
       }).setOrigin(0.5));
+    this.equipSetText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 68, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#f9e79f', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    c.add(this.equipSetText);
 
     EQUIP_SLOTS.forEach((slot, i) => {
-      const y = PANEL_Y + 110 + i * 90;
+      const y = PANEL_Y + 118 + i * 90;
       c.add(this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6));
       c.add(this.add.image(48, y, 'equip' + slot.id).setScale(1.25));
       const title = this.add.text(94, y - 18, '', {
@@ -376,15 +388,15 @@ export class UIScene extends Phaser.Scene {
     });
     c.add([this.tapName, this.tapSub, this.tapBtn, this.tapBtnText]);
 
-    // 영웅 행 x8
-    HEROES.forEach((h, i) => {
+    // 영웅 행 x8 (페이지 주도 — 24명을 3페이지로)
+    for (let i = 0; i < HEROES_PER_PAGE; i++) {
       const y = PANEL_Y + 100 + i * 54;
       c.add(this.add.image(GAME_WIDTH / 2, y, 'row'));
-      c.add(this.add.image(40, y, 'hero' + h.id));
-      c.add(this.add.text(40, y, h.name.charAt(0), {
+      const icon = this.add.image(40, y, 'hero0');
+      const initial = this.add.text(40, y, '', {
         fontFamily: FONT, fontSize: '18px', color: '#ffffff', fontStyle: 'bold',
-      }).setOrigin(0.5));
-      const name = this.add.text(74, y - 12, `${h.name} · ${h.title}`, {
+      }).setOrigin(0.5);
+      const name = this.add.text(74, y - 12, '', {
         fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
       const sub = this.add.text(74, y + 12, '', {
@@ -394,12 +406,36 @@ export class UIScene extends Phaser.Scene {
       const btnText = this.add.text(GAME_WIDTH - 96, y, '', {
         fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
+      const rowIdx = i;
       btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.state.tryBuyHero(h.id)) this.pop(btn);
+        const id = this.heroPage * HEROES_PER_PAGE + rowIdx;
+        if (id < HEROES.length && this.state.tryBuyHero(id)) this.pop(btn);
       });
-      c.add([name, sub, btn, btnText]);
-      this.heroRows.push({ name, sub, btn, btnText });
+      c.add([icon, initial, name, sub, btn, btnText]);
+      this.heroRows.push({ icon, initial, name, sub, btn, btnText });
+    }
+
+    // 페이저 ◀ n / N ▶
+    const pageY = GAME_HEIGHT - 20;
+    const totalPages = Math.ceil(HEROES.length / HEROES_PER_PAGE);
+    const prev = this.add.text(280, pageY, '◀', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    this.heroPageLabel = this.add.text(GAME_WIDTH / 2, pageY, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#9a8bb8',
+    }).setOrigin(0.5);
+    const next = this.add.text(440, pageY, '▶', {
+      fontFamily: FONT, fontSize: '22px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    prev.on('pointerdown', () => {
+      this.heroPage = (this.heroPage + totalPages - 1) % totalPages;
+      this.refreshPanel();
     });
+    next.on('pointerdown', () => {
+      this.heroPage = (this.heroPage + 1) % totalPages;
+      this.refreshPanel();
+    });
+    c.add([prev, this.heroPageLabel, next]);
     return c;
   }
 
@@ -597,10 +633,23 @@ export class UIScene extends Phaser.Scene {
     this.tapName.setText(`탭 공격력  Lv.${st.tapLevel}`);
     this.tapSub.setText(`탭당 ${fmt(st.tapDamage())}`);
     this.tapBtnText.setText(fmt(st.tapCost()));
-    HEROES.forEach((h, i) => {
-      const row = this.heroRows[i];
+    const totalPages = Math.ceil(HEROES.length / HEROES_PER_PAGE);
+    this.heroPageLabel.setText(`${this.heroPage + 1} / ${totalPages}`);
+    this.heroRows.forEach((row, i) => {
+      const id = this.heroPage * HEROES_PER_PAGE + i;
+      const h = HEROES[id];
+      const visible = !!h;
+      [row.icon, row.initial, row.name, row.sub, row.btn, row.btnText]
+        .forEach((o) => o.setVisible(visible));
+      if (!h) return;
       const lvl = st.heroLevels[h.id];
-      row.sub.setText(lvl === 0 ? '미고용' : `Lv.${lvl} · DPS ${fmt(st.heroDps(h.id))}`);
+      row.icon.setTexture('hero' + h.id);
+      row.initial.setText(h.name.charAt(0));
+      row.name.setText(`${h.name} · ${h.title}`);
+      const passive = st.isHeroPassiveActive(h.id)
+        ? ` · ${h.passive.desc}`
+        : (lvl > 0 ? ` · ${HERO_PASSIVE_UNLOCK}렙: ${h.passive.desc}` : '');
+      row.sub.setText(lvl === 0 ? '미고용' : `Lv.${lvl} · DPS ${fmt(st.heroDps(h.id))}${passive}`);
       row.btnText.setText(lvl === 0 ? `고용 ${fmt(st.heroCost(h.id))}` : fmt(st.heroCost(h.id)));
     });
 
@@ -628,6 +677,11 @@ export class UIScene extends Phaser.Scene {
         row.sub.setText(`${statName} 보너스 — 보스 처치로 획득`);
       }
     });
+
+    const setPct = st.equipSetBonus();
+    this.equipSetText.setText(setPct > 0
+      ? `세트 효과 발동! 모든 데미지 +${Math.round(setPct * 100)}%`
+      : '같은 등급 3종 장착 시 세트 효과 (모든 데미지 +10~60%)');
 
     // 퀘스트 탭
     st.ensureDaily();
@@ -660,8 +714,9 @@ export class UIScene extends Phaser.Scene {
   private refreshAfford(): void {
     const st = this.state;
     this.setEnabled(this.tapBtn, st.gold >= st.tapCost());
-    HEROES.forEach((h, i) => {
-      this.setEnabled(this.heroRows[i].btn, st.gold >= st.heroCost(h.id));
+    this.heroRows.forEach((row, i) => {
+      const id = this.heroPage * HEROES_PER_PAGE + i;
+      if (id < HEROES.length) this.setEnabled(row.btn, st.gold >= st.heroCost(id));
     });
     ARTIFACTS.forEach((a, i) => {
       this.setEnabled(

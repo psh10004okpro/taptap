@@ -6,7 +6,7 @@
 //   cooldowns   : 모든 스킬 쿨다운 초기화 (GameState.resetSkillCooldowns)
 //   offline-x2  : 오프라인 보상 2배 (오프라인 팝업에서 1회)
 // ---------------------------------------------------------------------------
-import { Analytics } from './Analytics';
+import { Analytics } from './Analytics.ts';
 
 export type AdSlot = 'gold-boost' | 'cooldowns' | 'offline-x2';
 

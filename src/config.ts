@@ -22,6 +22,28 @@ export const PRESTIGE_MIN_STAGE = 25;
 export const OFFLINE_RATE = 0.4; // 오프라인 DPS 환산율
 export const OFFLINE_CAP_SEC = 4 * 3600;
 
+// --- 효과 타입 (영웅 패시브 / 유물 / 펫이 공유하는 보너스 집계 체계) ----------
+
+export type EffectType =
+  | 'tap'        // 탭 데미지 배율 (fraction: 0.1 = +10%)
+  | 'dps'        // 영웅 DPS 배율
+  | 'gold'       // 골드 획득 배율
+  | 'allDmg'     // 탭+DPS 공통 배율
+  | 'critChance' // 크리 확률 가산 (fraction: 0.01 = +1%p)
+  | 'critMult'   // 크리 배율 가산 (절대값)
+  | 'bossTime'   // 보스 제한시간 가산 (ms)
+  | 'offline'    // 오프라인 보상 배율
+  | 'skillDur'   // 스킬 지속시간 배율
+  | 'heroCost';  // 영웅 비용 할인 (fraction, 총합 50% 상한)
+
+export const HERO_COST_DISCOUNT_CAP = 0.5;
+
+export interface HeroPassive {
+  type: EffectType;
+  value: number;
+  desc: string;
+}
+
 export interface HeroDef {
   id: number;
   name: string;
@@ -29,18 +51,52 @@ export interface HeroDef {
   baseCost: number;
   baseDps: number;
   color: number;
+  passive: HeroPassive;
 }
 
-export const HEROES: HeroDef[] = [
-  { id: 0, name: '아린', title: '견습 검사', baseCost: 50, baseDps: 3, color: 0xe74c3c },
-  { id: 1, name: '벨라', title: '숲의 궁수', baseCost: 800, baseDps: 44, color: 0x2ecc71 },
-  { id: 2, name: '단테', title: '화염 마법사', baseCost: 12_800, baseDps: 640, color: 0xe67e22 },
-  { id: 3, name: '리네', title: '달빛 도적', baseCost: 205_000, baseDps: 9_400, color: 0x9b59b6 },
-  { id: 4, name: '가온', title: '바위 수호자', baseCost: 3_280_000, baseDps: 138_000, color: 0x95a5a6 },
-  { id: 5, name: '세라', title: '빛의 사제', baseCost: 52_400_000, baseDps: 2_040_000, color: 0xf1c40f },
-  { id: 6, name: '카이', title: '뇌전 무사', baseCost: 838_000_000, baseDps: 30_100_000, color: 0x3498db },
-  { id: 7, name: '느와르', title: '심연의 기사', baseCost: 13_400_000_000, baseDps: 445_000_000, color: 0x34495e },
+/** 영웅 패시브 해금 레벨 */
+export const HERO_PASSIVE_UNLOCK = 20;
+
+const HERO_COLORS = [0xe74c3c, 0x2ecc71, 0xe67e22, 0x9b59b6, 0x95a5a6, 0xf1c40f, 0x3498db, 0x34495e];
+
+// 티어 계수: 뒤 티어일수록 패시브가 강함 (1x / 2x / 3x)
+const HERO_RAW: [string, string, EffectType, number, string][] = [
+  ['아린', '견습 검사', 'tap', 0.10, '탭 데미지 +10%'],
+  ['벨라', '숲의 궁수', 'dps', 0.10, '영웅 DPS +10%'],
+  ['단테', '화염 마법사', 'gold', 0.08, '골드 획득 +8%'],
+  ['리네', '달빛 도적', 'critChance', 0.01, '크리 확률 +1%p'],
+  ['가온', '바위 수호자', 'bossTime', 1000, '보스 시간 +1초'],
+  ['세라', '빛의 사제', 'offline', 0.08, '오프라인 보상 +8%'],
+  ['카이', '뇌전 무사', 'allDmg', 0.05, '모든 데미지 +5%'],
+  ['느와르', '심연의 기사', 'skillDur', 0.05, '스킬 지속 +5%'],
+  ['하늘', '창공의 창기사', 'tap', 0.20, '탭 데미지 +20%'],
+  ['모리안', '까마귀 주술사', 'dps', 0.20, '영웅 DPS +20%'],
+  ['골디', '황금 연금술사', 'gold', 0.16, '골드 획득 +16%'],
+  ['이졸데', '서리 무희', 'critChance', 0.02, '크리 확률 +2%p'],
+  ['바위금', '고룡 조련사', 'bossTime', 2000, '보스 시간 +2초'],
+  ['루멘', '별빛 현자', 'offline', 0.16, '오프라인 보상 +16%'],
+  ['천둥', '뇌신의 후예', 'allDmg', 0.10, '모든 데미지 +10%'],
+  ['그림자', '무영검사', 'skillDur', 0.10, '스킬 지속 +10%'],
+  ['볼카르', '용암 거인', 'tap', 0.30, '탭 데미지 +30%'],
+  ['세레스', '대지의 여신관', 'dps', 0.30, '영웅 DPS +30%'],
+  ['미다스', '탐욕의 군주', 'gold', 0.24, '골드 획득 +24%'],
+  ['혈랑', '붉은 늑대왕', 'critMult', 1.0, '크리 배율 +1'],
+  ['타이탄', '거신 병기', 'heroCost', 0.05, '영웅 비용 -5%'],
+  ['오로라', '극광의 마녀', 'offline', 0.24, '오프라인 보상 +24%'],
+  ['라그나', '종말의 기사', 'allDmg', 0.15, '모든 데미지 +15%'],
+  ['에테르', '시간의 감시자', 'skillDur', 0.15, '스킬 지속 +15%'],
 ];
+
+/** 24영웅 — 비용 x9.5/티어 (sim 으로 페이싱 검증), DPS 는 비용의 6% (약 17초 회수) */
+export const HEROES: HeroDef[] = HERO_RAW.map(([name, title, type, value, desc], i) => ({
+  id: i,
+  name,
+  title,
+  baseCost: Math.round(50 * Math.pow(9.5, i)),
+  baseDps: Math.max(1, Math.round(50 * Math.pow(9.5, i) * 0.06 * 100) / 100),
+  color: HERO_COLORS[i % HERO_COLORS.length],
+  passive: { type, value, desc },
+}));
 
 // --- 액티브 스킬 -----------------------------------------------------------
 
@@ -88,29 +144,37 @@ export interface ArtifactDef {
   baseCost: number;      // 유물 개수
   maxLevel: number;      // 0 = 무제한
   color: number;
+  effect: { type: EffectType; perLvl: number };
 }
 
+/** 유물 20종 — id 0~5 는 세이브 호환을 위해 효과/수치 불변 유지 */
 export const ARTIFACTS: ArtifactDef[] = [
-  { id: 0, name: '파괴의 검', desc: '탭 데미지 +25%', baseCost: 3, maxLevel: 0, color: 0xe74c3c },
-  { id: 1, name: '용맹의 깃발', desc: '영웅 DPS +25%', baseCost: 3, maxLevel: 0, color: 0x3498db },
-  { id: 2, name: '미다스의 잔', desc: '골드 획득 +20%', baseCost: 4, maxLevel: 0, color: 0xf1c40f },
-  { id: 3, name: '매의 눈', desc: '크리티컬 확률 +1%p', baseCost: 5, maxLevel: 20, color: 0x2ecc71 },
-  { id: 4, name: '거인의 심장', desc: '크리티컬 배율 +0.5', baseCost: 5, maxLevel: 0, color: 0xe67e22 },
-  { id: 5, name: '시간의 모래', desc: '보스 제한시간 +2초', baseCost: 6, maxLevel: 15, color: 0x9b59b6 },
+  { id: 0, name: '파괴의 검', desc: '탭 데미지 +25%', baseCost: 3, maxLevel: 0, color: 0xe74c3c, effect: { type: 'tap', perLvl: 0.25 } },
+  { id: 1, name: '용맹의 깃발', desc: '영웅 DPS +25%', baseCost: 3, maxLevel: 0, color: 0x3498db, effect: { type: 'dps', perLvl: 0.25 } },
+  { id: 2, name: '미다스의 잔', desc: '골드 획득 +20%', baseCost: 4, maxLevel: 0, color: 0xf1c40f, effect: { type: 'gold', perLvl: 0.2 } },
+  { id: 3, name: '매의 눈', desc: '크리티컬 확률 +1%p', baseCost: 5, maxLevel: 20, color: 0x2ecc71, effect: { type: 'critChance', perLvl: 0.01 } },
+  { id: 4, name: '거인의 심장', desc: '크리티컬 배율 +0.5', baseCost: 5, maxLevel: 0, color: 0xe67e22, effect: { type: 'critMult', perLvl: 0.5 } },
+  { id: 5, name: '시간의 모래', desc: '보스 제한시간 +2초', baseCost: 6, maxLevel: 15, color: 0x9b59b6, effect: { type: 'bossTime', perLvl: 2000 } },
+  { id: 6, name: '학자의 두루마리', desc: '오프라인 보상 +10%', baseCost: 4, maxLevel: 0, color: 0x1abc9c, effect: { type: 'offline', perLvl: 0.1 } },
+  { id: 7, name: '바람의 부적', desc: '스킬 지속시간 +5%', baseCost: 5, maxLevel: 20, color: 0x76d7c4, effect: { type: 'skillDur', perLvl: 0.05 } },
+  { id: 8, name: '상인의 인장', desc: '영웅 비용 -2%', baseCost: 6, maxLevel: 15, color: 0xd4ac0d, effect: { type: 'heroCost', perLvl: 0.02 } },
+  { id: 9, name: '태초의 룬', desc: '모든 데미지 +15%', baseCost: 8, maxLevel: 0, color: 0xecf0f1, effect: { type: 'allDmg', perLvl: 0.15 } },
+  { id: 10, name: '사냥꾼의 발톱', desc: '탭 데미지 +40%', baseCost: 5, maxLevel: 0, color: 0xc0392b, effect: { type: 'tap', perLvl: 0.4 } },
+  { id: 11, name: '군단의 나팔', desc: '영웅 DPS +40%', baseCost: 5, maxLevel: 0, color: 0x2980b9, effect: { type: 'dps', perLvl: 0.4 } },
+  { id: 12, name: '황금 골렘심장', desc: '골드 획득 +30%', baseCost: 7, maxLevel: 0, color: 0xf39c12, effect: { type: 'gold', perLvl: 0.3 } },
+  { id: 13, name: '얼어붙은 눈물', desc: '보스 제한시간 +3초', baseCost: 8, maxLevel: 10, color: 0x85c1e9, effect: { type: 'bossTime', perLvl: 3000 } },
+  { id: 14, name: '맹독 바늘', desc: '크리티컬 확률 +0.5%p', baseCost: 6, maxLevel: 30, color: 0x27ae60, effect: { type: 'critChance', perLvl: 0.005 } },
+  { id: 15, name: '거신의 주먹', desc: '크리티컬 배율 +1', baseCost: 8, maxLevel: 0, color: 0xba4a00, effect: { type: 'critMult', perLvl: 1 } },
+  { id: 16, name: '성좌의 지도', desc: '모든 데미지 +10%', baseCost: 5, maxLevel: 0, color: 0xbb8fce, effect: { type: 'allDmg', perLvl: 0.1 } },
+  { id: 17, name: '여명의 등불', desc: '오프라인 보상 +15%', baseCost: 7, maxLevel: 0, color: 0xf8c471, effect: { type: 'offline', perLvl: 0.15 } },
+  { id: 18, name: '폭풍의 핵', desc: '탭 데미지 +60%', baseCost: 9, maxLevel: 0, color: 0x5dade2, effect: { type: 'tap', perLvl: 0.6 } },
+  { id: 19, name: '대지의 맥박', desc: '영웅 DPS +60%', baseCost: 9, maxLevel: 0, color: 0x7d6608, effect: { type: 'dps', perLvl: 0.6 } },
 ];
 
 /** 유물 다음 레벨 비용 (유물 개수) */
 export function artifactCost(def: ArtifactDef, level: number): number {
   return Math.round(def.baseCost * Math.pow(1.35, level));
 }
-
-/** 유물 효과 배율/수치 */
-export const ARTIFACT_TAP_PER_LVL = 0.25;
-export const ARTIFACT_DPS_PER_LVL = 0.25;
-export const ARTIFACT_GOLD_PER_LVL = 0.2;
-export const ARTIFACT_CRIT_CHANCE_PER_LVL = 0.01;
-export const ARTIFACT_CRIT_MULT_PER_LVL = 0.5;
-export const ARTIFACT_BOSS_TIME_PER_LVL = 2_000; // ms
 
 // --- 보상형 광고 슬롯 -------------------------------------------------------
 // SDK(AdMob 등) 연동 전에도 게임 시스템으로서 먼저 존재한다. core/AdRewards.ts.
@@ -143,6 +207,9 @@ export const RARITIES: RarityDef[] = [
 ];
 
 export const EQUIP_DROP_CHANCE = 0.18; // 보스 처치당
+
+/** 세트 효과: 3슬롯 전부 같은 등급이면 모든 데미지 +% (등급 인덱스별) */
+export const EQUIP_SET_BONUS = [0.10, 0.20, 0.35, 0.60];
 
 export interface EquipItem {
   slot: number;

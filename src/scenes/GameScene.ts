@@ -6,9 +6,9 @@ import Phaser from 'phaser';
 import {
   COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
   SHADOW_CLONE_TAPS_PER_SEC, MONSTER_NAMES, BOSS_NAMES, monsterHp,
-} from '../config';
-import { GameState } from '../core/GameState';
-import { fmt } from '../core/format';
+} from '../config.ts';
+import { GameState } from '../core/GameState.ts';
+import { fmt } from '../core/format.ts';
 
 const FLOAT_POOL = 24;
 const COIN_POOL = 16;

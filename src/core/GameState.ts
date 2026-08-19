@@ -17,14 +17,13 @@ import {
   OFFLINE_CAP_SEC, OFFLINE_RATE, BOSS_TIME_LIMIT,
   BASE_CRIT_CHANCE, BASE_CRIT_MULT,
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT,
-  ARTIFACT_TAP_PER_LVL, ARTIFACT_DPS_PER_LVL, ARTIFACT_GOLD_PER_LVL,
-  ARTIFACT_CRIT_CHANCE_PER_LVL, ARTIFACT_CRIT_MULT_PER_LVL, ARTIFACT_BOSS_TIME_PER_LVL,
+  HERO_PASSIVE_UNLOCK, HERO_COST_DISCOUNT_CAP,
   AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
-  EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, DAILY_QUESTS,
+  EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, EQUIP_SET_BONUS, DAILY_QUESTS,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
-} from '../config';
-import type { EquipItem, QuestMetric } from '../config';
-import { Analytics } from './Analytics';
+} from '../config.ts';
+import type { EquipItem, QuestMetric, EffectType } from '../config.ts';
+import { Analytics } from './Analytics.ts';
 
 export type Mode = 'farm' | 'boss';
 
@@ -141,10 +140,20 @@ export class GameState extends Emitter {
     } catch { /* ignore */ }
   }
 
-  // --- 파생 값 ------------------------------------------------------------
+  // --- 파생 값 (데이터 주도 효과 집계) --------------------------------------
 
-  private artifactMult(perLvl: number, id: number): number {
-    return 1 + this.artifactLevels[id] * perLvl;
+  /** 유물 + 영웅 패시브(레벨 20+ 해금)의 타입별 합산 보너스 */
+  bonus(type: EffectType): number {
+    let sum = 0;
+    for (const a of ARTIFACTS) {
+      if (a.effect.type === type) sum += this.artifactLevels[a.id] * a.effect.perLvl;
+    }
+    for (const h of HEROES) {
+      if (h.passive.type === type && this.heroLevels[h.id] >= HERO_PASSIVE_UNLOCK) {
+        sum += h.passive.value;
+      }
+    }
+    return sum;
   }
 
   private equipMult(slot: number): number {
@@ -152,9 +161,22 @@ export class GameState extends Emitter {
     return item ? 1 + item.statPct / 100 : 1;
   }
 
+  /** 장비 세트 효과: 3슬롯 전부 같은 등급이면 모든 데미지 배율 */
+  equipSetBonus(): number {
+    const [a, b, c] = this.equipment;
+    if (!a || !b || !c) return 0;
+    if (a.rarity === b.rarity && b.rarity === c.rarity) return EQUIP_SET_BONUS[a.rarity] ?? 0;
+    return 0;
+  }
+
+  private allDmgMult(): number {
+    return (1 + this.bonus('allDmg')) * (1 + this.equipSetBonus());
+  }
+
   tapDamage(): number {
     let dmg = tapDamageAt(this.tapLevel)
-      * this.artifactMult(ARTIFACT_TAP_PER_LVL, 0)
+      * (1 + this.bonus('tap'))
+      * this.allDmgMult()
       * this.equipMult(0);
     if (this.isSkillActive(0)) dmg *= SKILL_TAP_MULT;
     return Math.max(1, Math.round(dmg));
@@ -163,37 +185,50 @@ export class GameState extends Emitter {
   totalDps(): number {
     let dps = 0;
     for (const h of HEROES) dps += heroDps(h, this.heroLevels[h.id]);
-    dps *= this.artifactMult(ARTIFACT_DPS_PER_LVL, 1) * this.equipMult(1);
+    dps *= (1 + this.bonus('dps')) * this.allDmgMult() * this.equipMult(1);
     if (this.isSkillActive(1)) dps *= SKILL_DPS_MULT;
     return dps;
   }
 
   goldMult(): number {
-    let m = this.artifactMult(ARTIFACT_GOLD_PER_LVL, 2) * this.equipMult(2);
+    let m = (1 + this.bonus('gold')) * this.equipMult(2);
     if (this.isSkillActive(2)) m *= SKILL_GOLD_MULT;
     if (this.isGoldBoostActive()) m *= AD_GOLD_BOOST_MULT;
     return m;
   }
 
   critChance(): number {
-    return Math.min(0.5, BASE_CRIT_CHANCE + this.artifactLevels[3] * ARTIFACT_CRIT_CHANCE_PER_LVL);
+    return Math.min(0.5, BASE_CRIT_CHANCE + this.bonus('critChance'));
   }
 
   critMult(): number {
-    return BASE_CRIT_MULT + this.artifactLevels[4] * ARTIFACT_CRIT_MULT_PER_LVL;
+    return BASE_CRIT_MULT + this.bonus('critMult');
   }
 
   bossTimeLimit(): number {
-    return BOSS_TIME_LIMIT + this.artifactLevels[5] * ARTIFACT_BOSS_TIME_PER_LVL;
+    return BOSS_TIME_LIMIT + this.bonus('bossTime');
+  }
+
+  offlineRate(): number {
+    return OFFLINE_RATE * (1 + this.bonus('offline'));
   }
 
   tapCost(): number { return tapCost(this.tapLevel); }
-  heroCost(id: number): number { return heroCost(HEROES[id], this.heroLevels[id]); }
+
+  heroCost(id: number): number {
+    const discount = Math.min(HERO_COST_DISCOUNT_CAP, this.bonus('heroCost'));
+    return Math.max(1, Math.round(heroCost(HEROES[id], this.heroLevels[id]) * (1 - discount)));
+  }
+
   heroDps(id: number): number {
     return heroDps(HEROES[id], this.heroLevels[id])
-      * this.artifactMult(ARTIFACT_DPS_PER_LVL, 1)
-      * this.equipMult(1)
+      * (1 + this.bonus('dps')) * this.allDmgMult() * this.equipMult(1)
       * (this.isSkillActive(1) ? SKILL_DPS_MULT : 1);
+  }
+
+  /** 영웅 패시브 해금 여부 */
+  isHeroPassiveActive(id: number): boolean {
+    return this.heroLevels[id] >= HERO_PASSIVE_UNLOCK;
   }
 
   prestigeRelics(): number { return relicsFor(this.maxStage); }
@@ -227,7 +262,8 @@ export class GameState extends Emitter {
     if (this.skillCooldownLeft(id) > 0) return false;
     const now = Date.now();
     const def = SKILLS[id];
-    this.skillActiveUntil[id] = now + def.duration;
+    const dur = Math.round(def.duration * (1 + this.bonus('skillDur')));
+    this.skillActiveUntil[id] = now + dur;
     this.skillReadyAt[id] = now + def.cooldown;
     this.bumpQuest('skillUses');
     Analytics.track('skill_use', { id, stage: this.stage });
@@ -537,7 +573,7 @@ export class GameState extends Emitter {
         (s) => Math.min(Math.max(0, num(d.skillReadyAt?.[s.id], 0)), now + s.cooldown),
       );
       this.skillActiveUntil = SKILLS.map(
-        (s) => Math.min(Math.max(0, num(d.skillActiveUntil?.[s.id], 0)), now + s.duration),
+        (s) => Math.min(Math.max(0, num(d.skillActiveUntil?.[s.id], 0)), now + s.duration * 2),
       );
       this.goldBoostUntil = Math.min(
         Math.max(0, num(d.goldBoostUntil, 0)), now + AD_GOLD_BOOST_DURATION,
@@ -584,7 +620,7 @@ export class GameState extends Emitter {
 
   /** 오프라인 보상 골드 계산 (지급은 호출측에서) */
   offlineGold(awaySec: number): number {
-    return Math.floor(this.totalDps() * awaySec * OFFLINE_RATE * this.goldMult());
+    return Math.floor(this.totalDps() * awaySec * this.offlineRate() * this.goldMult());
   }
 
   static hasSave(): boolean {

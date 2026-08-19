@@ -2,7 +2,7 @@
 // BootScene: 외부 에셋 없이 모든 텍스처를 Graphics 로 절차 생성한다.
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config';
+import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config.ts';
 
 const MONSTER_COLORS = [0x6fcf5a, 0x5aa8e8, 0xd86fd4, 0xe8a05a, 0x8a7de8, 0xe85a72];
 
