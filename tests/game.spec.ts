@@ -33,6 +33,10 @@ declare global {
         lifetime: Record<string, number>; achClaimed: boolean[];
         achProgress(id: number): number; canClaimAch(id: number): boolean;
         claimAch(id: number): boolean;
+        gems: number; gemsPurchased: number;
+        grantGems(n: number, purchased: boolean): void; vipTier(): number;
+        gemCooldownReset(): boolean; gemGoldPack(): boolean;
+        gemEquipBox(): boolean; gemRespecTree(): boolean; offlineCapSec(): number;
       };
       tourney: {
         status(now?: Date): { kind: string; opensInMs?: number; closesInMs?: number };
@@ -705,6 +709,86 @@ test('QA 툴: 일반 모드(?dev 없음)에서는 패널이 로드되지 않는�
   await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
   await page.waitForTimeout(500);
   expect(await page.locator('#qa-toggle').count()).toBe(0);
+});
+
+test('BM 보석: 싱크 4종이 차감·효과·잔액 부족 처리까지 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const broke = s.gemGoldPack();          // 보석 0 → 실패
+    s.grantGems(200, false);
+    const gold0 = s.gold;
+    const okGold = s.gemGoldPack();         // 50젬 → 골드 지급
+    s.maxStage = 30;
+    s.tryActivateSkill(0);
+    const okCd = s.gemCooldownReset();      // 20젬 → 쿨다운 0
+    const cdAfter = s.skillCooldownLeft(0);
+    const okBox = s.gemEquipBox();          // 80젬 → 장비 (영웅 이상)
+    const boxRarity = Math.max(...s.equipment.filter(Boolean).map((e) => e!.rarity), -1);
+    return {
+      broke, okGold, okCd, okBox, cdAfter,
+      goldGained: s.gold > gold0,
+      gemsLeft: s.gems,                     // 200 - 50 - 20 - 80 = 50
+      boxRarity,
+    };
+  });
+  expect(r.broke).toBe(false);
+  expect(r.okGold).toBe(true);
+  expect(r.goldGained).toBe(true);
+  expect(r.okCd).toBe(true);
+  expect(r.cdAfter).toBe(0);
+  expect(r.okBox).toBe(true);
+  expect(r.boxRarity).toBeGreaterThanOrEqual(2); // 영웅(2) 이상만 나옴
+  expect(r.gemsLeft).toBe(50);
+  expect(errors).toHaveLength(0);
+});
+
+test('BM VIP: 누적 구매 보석이 티어와 오프라인 상한을 올린다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const t0 = s.vipTier();
+    const cap0 = s.offlineCapSec();
+    s.grantGems(500, true);                 // 구매 경로 → VIP 누적
+    const t1 = s.vipTier();
+    const cap1 = s.offlineCapSec();
+    s.grantGems(500, false);                // 비구매 지급 → VIP 미반영
+    const t2 = s.vipTier();
+    return { t0, t1, t2, cap0, cap1 };
+  });
+  expect(r.t0).toBe(0);
+  expect(r.t1).toBe(2);                     // 500 누적 → 티어 2
+  expect(r.t2).toBe(2);
+  expect(r.cap1).toBe(r.cap0 + 2 * 3600);   // 오프라인 상한 +2시간
+  expect(errors).toHaveLength(0);
+});
+
+test('BM 상점 UI: dev 모드에서 Mock 결제로 보석 팩 구매가 완료된다', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.goto('/?dev=1');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  await page.waitForFunction(
+    () => (window.__taptap!.game as { registry: { get(k: string): unknown } })
+      .registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
+  // 보석 카운터([상점]) 탭 → 상점 열림 → 첫 팩(보석 한 줌) 구매
+  await tapGame(page, 120, 126);            // 보석 텍스트 영역
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'screenshots/18-shop.png' });
+  await tapGame(page, 620, 220);            // 첫 팩 구매 버튼 (y=panelTop+100)
+  await page.waitForTimeout(1_200);         // Mock 결제 500ms + 지급
+  const r = await page.evaluate(() => ({
+    gems: window.__taptap!.state.gems,
+    purchased: window.__taptap!.state.gemsPurchased,
+  }));
+  expect(r.gems).toBe(80);
+  expect(r.purchased).toBe(80);
+  expect(errors).toHaveLength(0);
 });
 
 test('저장/복원: 리로드 후 진행 상황이 유지된다', async ({ page }) => {

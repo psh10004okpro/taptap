@@ -36,6 +36,7 @@ npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
 | 시즌 | 4주 단위 랭킹 리셋 + 시즌 종료 보상 |
 | 광고 보상 슬롯 | 골드 x2(30분)·스킬 쿨다운 리셋·오프라인 2배 — Mock 광고, SDK 는 Provider 교체만 |
 | 랭킹 | Supabase 온라인 랭킹(서버 검증) 또는 로컬 모드 자동 폴백 |
+| 상점/BM | 보석 재화, 팩 4종(Mock/실결제 Provider 교체), 소비 싱크 4종, VIP 티어, 확률 공시 |
 | 저장 | localStorage 자동 저장(5초/백그라운드 전환), 오프라인 보상(DPS x 40%, 최대 4시간) |
 
 ## 코드 맵

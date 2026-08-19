@@ -326,6 +326,49 @@ export const PETS: PetDef[] = [
 
 export const PET_EGG_DROP_CHANCE = 0.06; // 보스 처치당
 
+// --- BM: 보석(프리미엄 재화) / 상점 / VIP -------------------------------------
+// 원칙: 무과금 페이싱은 IAP 없이 성립한다 (시뮬은 IAP 미반영이 기준선).
+// 보석은 "시간 단축"만 판다 — 무과금이 도달 불가능한 파워는 팔지 않는다.
+
+export interface GemPackDef {
+  id: string;           // 스토어 product id 와 1:1
+  name: string;
+  gems: number;
+  bonusDesc: string;    // 표기용 (첫구매 보너스 등)
+  priceKrw: number;     // 표기용 — 실제 가격은 스토어가 결정
+}
+
+export const GEM_PACKS: GemPackDef[] = [
+  { id: 'gems_s', name: '보석 한 줌', gems: 80, bonusDesc: '', priceKrw: 3_900 },
+  { id: 'gems_m', name: '보석 주머니', gems: 450, bonusDesc: '+12% 보너스', priceKrw: 19_000 },
+  { id: 'gems_l', name: '보석 금고', gems: 1_200, bonusDesc: '+23% 보너스', priceKrw: 45_000 },
+  { id: 'starter', name: '스타터 팩', gems: 120, bonusDesc: '전설 장비 1개 포함 · 1회 한정', priceKrw: 5_900 },
+];
+
+/** 보석 소비처 (싱크) */
+export const GEM_SINKS = {
+  cooldownReset: 20,   // 모든 스킬 쿨다운 초기화
+  goldPack: 50,        // 골드 팩: 현재 스테이지 killGold x GOLD_PACK_KILLS
+  equipBox: 80,        // 장비 상자 (영웅 85% / 전설 15% — 확률 공시 필수)
+  treeRespec: 30,      // 스킬트리 리스펙 (유물 10개 대체)
+} as const;
+
+export const GOLD_PACK_KILLS = 600; // "약 10분치 파밍" — 스테이지 비례라 인플레 없음
+/** 장비 상자 확률 (한국 확률형 아이템 공시 대상 — UI 에 그대로 표기할 것) */
+export const EQUIP_BOX_RATES: { rarity: number; pct: number }[] = [
+  { rarity: 2, pct: 85 }, // 영웅
+  { rarity: 3, pct: 15 }, // 전설
+];
+
+/** VIP: 누적 구매 보석 기준 영구 티어 (QoL 만 — 전투력 직접 판매 금지) */
+export interface VipTierDef { need: number; offlineCapBonusHr: number; questGoldPct: number }
+export const VIP_TIERS: VipTierDef[] = [
+  { need: 0, offlineCapBonusHr: 0, questGoldPct: 0 },
+  { need: 100, offlineCapBonusHr: 1, questGoldPct: 25 },
+  { need: 500, offlineCapBonusHr: 2, questGoldPct: 50 },
+  { need: 1500, offlineCapBonusHr: 4, questGoldPct: 100 },
+];
+
 // --- 업적 (평생 통계 기반, 보상: 유물) ---------------------------------------
 
 export type LifetimeMetric = 'taps' | 'kills' | 'bossKills' | 'prestiges' | 'equipDrops' | 'maxStage';

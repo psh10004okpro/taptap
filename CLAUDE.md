@@ -39,3 +39,9 @@
 - QA 치트는 `core/DevTools.ts` 에만 추가 — 패널(?dev=1)과 E2E 가 같은 코드를 쓴다.
 - 상태 불변식은 `DevTools.validate()` 에 누적한다. 몽키(`npm run test:monkey`)가 검사.
 - `window.__taptap` 훅 시그니처 변경 시 tests/game.spec.ts 의 선언도 갱신.
+
+## BM 규칙 (docs/MONETIZATION.md)
+- 보석 지급은 `grantGems` 경유만. 구매 경로는 반드시 서버 검증(ok) 후 `purchased=true`.
+- 보석은 시간 단축만 판다 — 무과금 도달 불가 파워 판매 금지. 시뮬은 IAP 미반영이 기준선.
+- 확률형 상품 확률은 config(`EQUIP_BOX_RATES`)가 단일 출처 — UI 공시가 자동 동기화된다.
+- `GEM_PACKS` 변경 시 `supabase/functions/verify-purchase` 의 PRODUCTS 사본도 갱신.

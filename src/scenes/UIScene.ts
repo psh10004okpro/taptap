@@ -11,9 +11,11 @@ import {
 import type { EquipItem } from '../config.ts';
 import {
   ACHIEVEMENTS, PETS, SKILL_TREE, TREE_BRANCH_NAMES, TREE_RESPEC_COST, treeNodeCost,
+  GEM_PACKS, GEM_SINKS, EQUIP_BOX_RATES, RARITIES as RARITY_DEFS, VIP_TIERS,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
+import { IapService, MockIapProvider } from '../core/Iap.ts';
 import * as Tournament from '../core/Tournament.ts';
 import * as Season from '../core/Season.ts';
 import * as ClanBoss from '../core/ClanBoss.ts';
@@ -97,6 +99,9 @@ export class UIScene extends Phaser.Scene {
   private rankLines: Phaser.GameObjects.Text[] = [];
 
   private ads = new AdRewards();
+  private iap = new IapService();
+  private gemText!: Phaser.GameObjects.Text;
+  private shopParts: Phaser.GameObjects.GameObject[] = [];
   private boostBtnText!: Phaser.GameObjects.Text;
   private boostBtn!: Phaser.GameObjects.Image;
   private cdBtn!: Phaser.GameObjects.Image;
@@ -154,6 +159,11 @@ export class UIScene extends Phaser.Scene {
     this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
     this.lb = new Leaderboard();
+    this.shopParts = [];
+    // QA 모드(?dev=1)에서는 Mock 결제로 상점 흐름 전체를 테스트할 수 있다
+    if (new URLSearchParams(location.search).get('dev') === '1') {
+      this.iap.setProvider(new MockIapProvider());
+    }
 
     this.buildTopBar();
     this.buildSkillBar();
@@ -217,6 +227,19 @@ export class UIScene extends Phaser.Scene {
     this.timerBg = this.add.image(GAME_WIDTH / 2, 92, 'hpbar-bg').setScale(1, 0.6).setVisible(false);
     this.timerFill = this.add.image(GAME_WIDTH / 2 - 165, 92, 'timer-fill')
       .setOrigin(0, 0.5).setVisible(false);
+
+    // 보석 카운터 (탭 → 상점)
+    const gem = this.add.graphics({ x: 46, y: 126 });
+    gem.fillStyle(0x8e44ad, 1);
+    gem.fillTriangle(0, -9, 8, 0, -8, 0);
+    gem.fillTriangle(-8, 0, 8, 0, 0, 10);
+    gem.fillStyle(0xd8b8ff, 0.6);
+    gem.fillTriangle(-3, -6, 3, -6, 0, -1);
+    this.gemText = this.add.text(64, 126, '0  [상점]', {
+      fontFamily: FONT, fontSize: '19px', color: '#d8b8ff', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.gemText.setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.openShop());
 
     // 광고 보상: 골드 x2 부스트 / 스킬 쿨다운 초기화
     this.boostBtn = this.add.image(288, 120, 'btn-ad');
@@ -931,6 +954,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refreshGold(): void {
+    const vip = this.state.vipTier();
+    this.gemText?.setText(`${fmt(this.state.gems)}  [상점]${vip > 0 ? `  VIP${vip}` : ''}`);
     this.goldText.setText(fmt(this.state.gold));
     this.dpsText.setText(`DPS ${fmt(this.state.totalDps())}`);
     this.refreshAfford();
@@ -1119,6 +1144,124 @@ export class UIScene extends Phaser.Scene {
       targets: t, y: 610, alpha: 0, duration: 1400, ease: 'Quad.In', delay: 300,
       onComplete: () => { if (this.toast === t) this.toast = null; t.destroy(); },
     });
+  }
+
+  // --- 상점 (보석) ----------------------------------------------------------
+
+  private closeShop(): void {
+    this.shopParts.forEach((o) => o.destroy());
+    this.shopParts = [];
+  }
+
+  private openShop(): void {
+    if (this.shopParts.length) return; // 이미 열림
+    const st = this.state;
+    const parts = this.shopParts;
+    const dim = this.add.image(0, 0, 'dim').setOrigin(0, 0).setDepth(70).setInteractive();
+    parts.push(dim);
+    const panelTop = 120;
+    const bg = this.add.image(GAME_WIDTH / 2, 640, 'panel').setDepth(71).setScale(0.94, 1.9);
+    parts.push(bg);
+    const title = this.add.text(GAME_WIDTH / 2, panelTop + 40, '상점', {
+      fontFamily: FONT, fontSize: '30px', color: '#f9e79f', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(72);
+    parts.push(title);
+    const close = this.add.text(GAME_WIDTH - 70, panelTop + 40, '✕', {
+      fontFamily: FONT, fontSize: '30px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(72).setInteractive({ useHandCursor: true });
+    close.on('pointerdown', () => this.closeShop());
+    parts.push(close);
+
+    const row = (y: number, name: string, sub: string, btnLabel: string,
+      enabled: boolean, onBuy: () => void): void => {
+      const rbg = this.add.image(GAME_WIDTH / 2, y, 'row').setDepth(72).setScale(1, 1.35);
+      const nameT = this.add.text(48, y - 15, name, {
+        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5).setDepth(73);
+      const subT = this.add.text(48, y + 13, sub, {
+        fontFamily: FONT, fontSize: '13px', color: '#9a8bb8',
+      }).setOrigin(0, 0.5).setDepth(73);
+      const btn = this.add.image(GAME_WIDTH - 100, y, 'btn-buy').setDepth(73);
+      const btnT = this.add.text(GAME_WIDTH - 100, y, btnLabel, {
+        fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(74);
+      btn.setAlpha(enabled ? 1 : 0.4);
+      if (enabled) {
+        btn.setInteractive({ useHandCursor: true }).on('pointerdown', onBuy);
+      }
+      parts.push(rbg, nameT, subT, btn, btnT);
+    };
+
+    // 보석 팩 (구매)
+    let y = panelTop + 100;
+    parts.push(this.add.text(48, y - 34, `보석 구매 ${this.iap.isAvailable() ? '' : '— 상점 준비 중 (스토어 연동 후 활성화)'}`, {
+      fontFamily: FONT, fontSize: '15px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0, 0.5).setDepth(72));
+    GEM_PACKS.forEach((pk) => {
+      const sub = `보석 ${pk.gems}${pk.bonusDesc ? ` · ${pk.bonusDesc}` : ''}`;
+      const soldOut = this.iap.alreadyPurchased(pk.id);
+      row(y, pk.name, sub, soldOut ? '구매완료' : `₩${pk.priceKrw.toLocaleString()}`,
+        this.iap.isAvailable() && !soldOut, () => {
+          this.showToast('결제 진행 중...');
+          void this.iap.buy(pk.id, (gems) => {
+            st.grantGems(gems, true);
+            if (pk.id === 'starter') {
+              // 스타터 팩: 전설 장비 1개 동봉
+              const slot = Math.floor(Math.random() * 3);
+              st.equipment[slot] = { slot, rarity: 3, statPct: Math.min(300, 30 + st.stage * 2), stage: st.stage };
+              st.emit('upgrade');
+            }
+          }).then((r) => {
+            this.showToast(r.ok ? '구매 완료! 보석이 지급되었습니다.' : (r.reason ?? '구매 실패'));
+            this.closeShop();
+            this.refreshGold();
+          });
+        });
+      y += 74;
+    });
+
+    // 보석 사용 (싱크)
+    y += 24;
+    parts.push(this.add.text(48, y - 34, '보석 사용', {
+      fontFamily: FONT, fontSize: '15px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0, 0.5).setDepth(72));
+    const sinks: { name: string; sub: string; cost: number; can: boolean; run: () => boolean }[] = [
+      {
+        name: '스킬 쿨다운 초기화', sub: '모든 스킬을 즉시 사용 가능',
+        cost: GEM_SINKS.cooldownReset, can: st.anySkillOnCooldown(), run: () => st.gemCooldownReset(),
+      },
+      {
+        name: '골드 팩', sub: '현재 스테이지 약 10분치 파밍 골드',
+        cost: GEM_SINKS.goldPack, can: true, run: () => st.gemGoldPack(),
+      },
+      {
+        name: '장비 상자', sub: `확률: ${EQUIP_BOX_RATES.map((r) => `${RARITY_DEFS[r.rarity].name} ${r.pct}%`).join(' / ')}`,
+        cost: GEM_SINKS.equipBox, can: true, run: () => st.gemEquipBox(),
+      },
+      {
+        name: '스킬트리 초기화', sub: `유물 ${TREE_RESPEC_COST}개 대신 보석으로`,
+        cost: GEM_SINKS.treeRespec, can: st.spSpent() > 0, run: () => st.gemRespecTree(),
+      },
+    ];
+    sinks.forEach((sk) => {
+      row(y, sk.name, sk.sub, `보석 ${sk.cost}`, sk.can && st.gems >= sk.cost, () => {
+        if (sk.run()) {
+          this.showToast(`${sk.name} 완료!`);
+          this.closeShop();
+        }
+      });
+      y += 74;
+    });
+
+    // VIP 안내 + 규제 고지
+    const vip = st.vipTier();
+    const next = VIP_TIERS[vip + 1];
+    parts.push(this.add.text(GAME_WIDTH / 2, y + 6,
+      `VIP ${vip} — 오프라인 상한 +${VIP_TIERS[vip].offlineCapBonusHr}시간 · 퀘스트 골드 +${VIP_TIERS[vip].questGoldPct}%`
+      + (next ? `\n다음 티어까지 누적 보석 ${next.need - st.gemsPurchased}개`
+        : '\n최고 티어입니다') + '\n확률형 상품(장비 상자)의 확률은 위 표기와 같습니다.', {
+        fontFamily: FONT, fontSize: '13px', color: '#9a8bb8', align: 'center', lineSpacing: 5,
+      }).setOrigin(0.5, 0).setDepth(72));
   }
 
   // --- 팝업 ---------------------------------------------------------------

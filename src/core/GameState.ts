@@ -24,6 +24,7 @@ import {
   ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS, PETS, PET_EGG_DROP_CHANCE,
   SKILL_TREE, SP_PER_STAGES, SP_PER_PRESTIGE, TREE_RESPEC_COST, SKILL_CD_CAP,
   treeNodeCost,
+  GEM_SINKS, GOLD_PACK_KILLS, EQUIP_BOX_RATES, VIP_TIERS,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
 import type { EquipItem, QuestMetric, EffectType, LifetimeMetric } from '../config.ts';
@@ -58,6 +59,8 @@ interface SaveData {
   achClaimed: boolean[];
   petLevels: number[];
   treeLevels: number[];
+  gems: number;
+  gemsPurchased: number;
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
@@ -130,6 +133,10 @@ export class GameState extends Emitter {
   petLevels: number[] = PETS.map(() => 0);
   /** 스킬트리 노드 레벨 (환생 유지, 리스펙으로만 초기화) */
   treeLevels: number[] = SKILL_TREE.map(() => 0);
+  /** 보석 (프리미엄 재화). 지급은 grantGems 경유 — 구매분은 VIP 누적에 반영 */
+  gems = 0;
+  /** 누적 구매 보석 (VIP 티어 기준) */
+  gemsPurchased = 0;
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
@@ -325,15 +332,88 @@ export class GameState extends Emitter {
     this.emit('upgrade');
   }
 
-  /** 쿨다운 리셋 광고가 의미 있는가 (하나라도 쿨다운 중) */
+  /** 쿨다운 리셋이 의미 있는가 — 활성 중이어도 재사용 대기가 남았으면 대상 */
   anySkillOnCooldown(): boolean {
-    return SKILLS.some((s) => this.isSkillUnlocked(s.id)
-      && !this.isSkillActive(s.id) && this.skillCooldownLeft(s.id) > 0);
+    return SKILLS.some((s) => this.isSkillUnlocked(s.id) && this.skillCooldownLeft(s.id) > 0);
   }
 
   /** 사람의 실제 탭 1회 기록 (업적 통계) */
   recordTap(): void {
     this.lifetime.taps += 1;
+  }
+
+  // --- 보석 / VIP -----------------------------------------------------------
+
+  /** 보석 지급. purchased=true 면 VIP 누적에도 반영 (IAP 검증 성공 경로만) */
+  grantGems(n: number, purchased: boolean): void {
+    this.gems += n;
+    if (purchased) this.gemsPurchased += n;
+    this.emit('upgrade');
+  }
+
+  vipTier(): number {
+    let tier = 0;
+    VIP_TIERS.forEach((t, i) => { if (this.gemsPurchased >= t.need) tier = i; });
+    return tier;
+  }
+
+  /** VIP 반영 오프라인 보상 상한 (초) */
+  offlineCapSec(): number {
+    return OFFLINE_CAP_SEC + VIP_TIERS[this.vipTier()].offlineCapBonusHr * 3600;
+  }
+
+  private spendGems(cost: number, sink: string): boolean {
+    if (this.gems < cost) return false;
+    this.gems -= cost;
+    Analytics.track('gem_spend', { sink, cost });
+    this.emit('upgrade');
+    return true;
+  }
+
+  /** 보석: 모든 스킬 쿨다운 초기화 */
+  gemCooldownReset(): boolean {
+    if (!this.anySkillOnCooldown()) return false;
+    if (!this.spendGems(GEM_SINKS.cooldownReset, 'cooldownReset')) return false;
+    this.resetSkillCooldowns();
+    return true;
+  }
+
+  /** 보석: 골드 팩 — 현재 스테이지 파밍 약 10분치 (스테이지 비례, 인플레 없음) */
+  gemGoldPack(): boolean {
+    if (!this.spendGems(GEM_SINKS.goldPack, 'goldPack')) return false;
+    this.addGold(killGold(this.stage, false) * GOLD_PACK_KILLS);
+    return true;
+  }
+
+  /** 보석: 장비 상자 — 확률은 EQUIP_BOX_RATES (UI 공시 필수). 상위면 자동 장착 */
+  gemEquipBox(): boolean {
+    if (!this.spendGems(GEM_SINKS.equipBox, 'equipBox')) return false;
+    let roll = Math.random() * 100;
+    let rarity = EQUIP_BOX_RATES[0].rarity;
+    for (const r of EQUIP_BOX_RATES) {
+      roll -= r.pct;
+      if (roll <= 0) { rarity = r.rarity; break; }
+    }
+    const slot = Math.floor(Math.random() * EQUIP_SLOTS.length);
+    const item: EquipItem = { slot, rarity, statPct: equipStatPct(rarity, this.stage), stage: this.stage };
+    const cur = this.equipment[slot];
+    const equipped = !cur || item.statPct > cur.statPct;
+    if (equipped) this.equipment[slot] = item;
+    this.lifetime.equipDrops += 1;
+    Analytics.track('equip_drop', { slot, rarity, statPct: item.statPct, stage: this.stage, equipped, source: 'gemBox' });
+    this.emit('drop', item, equipped);
+    this.emit('upgrade');
+    return true;
+  }
+
+  /** 보석: 스킬트리 리스펙 (유물 소비 대체) */
+  gemRespecTree(): boolean {
+    if (this.spSpent() === 0) return false;
+    if (!this.spendGems(GEM_SINKS.treeRespec, 'treeRespec')) return false;
+    this.treeLevels = SKILL_TREE.map(() => 0);
+    Analytics.track('tree_respec', { via: 'gems' });
+    this.emit('upgrade');
+    return true;
   }
 
   // --- 스킬트리 -------------------------------------------------------------
@@ -548,7 +628,8 @@ export class GameState extends Emitter {
     this.daily.claimed[id] = true;
     let rewarded = 0;
     if (q.reward === 'gold') {
-      rewarded = killGold(this.stage, false) * q.amount;
+      const vipPct = VIP_TIERS[this.vipTier()].questGoldPct;
+      rewarded = Math.round(killGold(this.stage, false) * q.amount * (1 + vipPct / 100));
       this.addGold(rewarded);
     } else {
       rewarded = q.amount;
@@ -645,7 +726,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 6,
+      v: 7,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -665,6 +746,8 @@ export class GameState extends Emitter {
       achClaimed: this.achClaimed,
       petLevels: this.petLevels,
       treeLevels: this.treeLevels,
+      gems: this.gems,
+      gemsPurchased: this.gemsPurchased,
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
@@ -747,6 +830,8 @@ export class GameState extends Emitter {
       this.treeLevels = SKILL_TREE.map((n) => Math.min(
         n.maxLevel, Math.max(0, Math.floor(num(d.treeLevels?.[n.id], 0))),
       ));
+      this.gems = Math.max(0, Math.floor(num(d.gems, 0)));
+      this.gemsPurchased = Math.max(0, Math.floor(num(d.gemsPurchased, 0)));
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개
@@ -754,7 +839,7 @@ export class GameState extends Emitter {
       this.stageEnteredAt = now;
       // lastSeen 이 미래(시계 롤백)면 오프라인 보상 없음
       const away = (now - Math.min(num(d.lastSeen, now), now)) / 1000;
-      return away > 60 ? Math.min(away, OFFLINE_CAP_SEC) : 0;
+      return away > 60 ? Math.min(away, this.offlineCapSec()) : 0;
     } catch {
       return 0;
     }
