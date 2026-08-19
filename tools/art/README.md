@@ -23,6 +23,23 @@ python3 tools/art/process.py
 python3 tools/art/contact.py             # tools/art/contact.png
 ```
 
+## 앱 아이콘 · 스플래시 · 스토어 이미지
+
+```bash
+python3 tools/art/icons.py
+```
+`tools/art/raw/appicon.png` 를 원본으로 (없으면 같은 STYLE 로 생성)
+
+- `android/.../mipmap-*/` 런처 3종 x 5밀도 — 레거시 정사각, 원형, 어댑티브 전경
+  (어댑티브는 바깥 25% 가 잘리므로 66/108 안전영역 안에 넣는다)
+- `android/.../values/ic_launcher_background.xml` 어댑티브 배경색 `#0D0A1A`
+- `android/.../drawable*/splash.png` 기존 버킷 크기 그대로 재생성
+- `store/icon-512.png`, `store/feature-1024x500.png` Play 등록용
+- `public/icon-{192,512}.png` 웹 파비콘
+
+원형 마스크를 그대로 씌우면 뿔이 잘려서, 원형/어댑티브는 엠블럼을 84% 로 줄여
+원판 위에 올린다.
+
 ## 컨셉 시안 (선택 단계)
 
 ```bash

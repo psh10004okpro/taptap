@@ -22,6 +22,11 @@ cd android && ./gradlew assembleDebug
 # 산출물: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## 아이콘 / 스플래시 / 스토어 이미지
+`python3 tools/art/icons.py` 가 런처 아이콘(5밀도 x 3종)·스플래시·`store/` 의
+Play 등록 이미지를 한 번에 만든다. 기본 Capacitor 아이콘(파란 X)은 교체 완료.
+아트 스타일을 바꾸면 `tools/art/raw/appicon.png` 를 지우고 다시 실행할 것.
+
 ## 메모
 - 세로 모드 고정: `AndroidManifest.xml` 의 `android:screenOrientation="portrait"`
 - 앱 ID: `com.taptap.titans` (capacitor.config.ts)
