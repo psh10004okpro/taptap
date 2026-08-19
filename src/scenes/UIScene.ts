@@ -365,13 +365,16 @@ export class UIScene extends Phaser.Scene {
   private tutBg!: Phaser.GameObjects.Image;
   private tutText!: Phaser.GameObjects.Text;
   private tutPointer!: Phaser.GameObjects.Text;
-  /** 단계별 포인터: [x, y, 글리프, 필요 탭] — 필요 탭 -1 이면 어느 탭에서나 표시 */
+  /**
+   * 단계별 포인터: [x, y, 글리프, 필요 탭] — 필요 탭 -1 이면 어느 탭에서나 표시.
+   * 패널 안 버튼은 '▶' 로 왼쪽에서 가리킨다 (버튼 위는 탭 버튼 띠와 겹친다).
+   */
   private static readonly TUT_POINTS: ([number, number, string, number] | null)[] = [
-    [GAME_WIDTH / 2, 330, '▼', -1],              // 몬스터
-    [GAME_WIDTH - 96, PANEL_Y + 4, '▼', TAB_SWORD], // 탭 공격력 구매 버튼 위
-    [GAME_WIDTH - 96, PANEL_Y + 16, '▼', TAB_HERO], // 첫 영웅 고용 버튼 위
-    [BOSS_BTN.x, BOSS_BTN.y + 46, '▲', -1],      // 보스 도전 버튼 아래
-    [GAME_WIDTH - 96, PANEL_Y + 64, '▼', TAB_SWORD], // 환생 버튼 위
+    [GAME_WIDTH / 2, 330, '▼', -1],                  // 몬스터
+    [528, PANEL_Y + 44, '▶', TAB_SWORD],             // 탭 공격력 구매 버튼
+    [528, PANEL_Y + 56, '▶', TAB_HERO],              // 첫 영웅 고용 버튼
+    [GAME_WIDTH / 2, 330, '▼', -1],                  // 몬스터 (9킬 시 보스 자동 등장)
+    [528, PANEL_Y + 104, '▶', TAB_SWORD],            // 환생 버튼
   ];
 
   private buildTutorial(): void {
@@ -423,10 +426,11 @@ export class UIScene extends Phaser.Scene {
     this.tweens.killTweensOf(this.tutPointer);
     if (pt && (pt[3] < 0 || this.curTab === pt[3])) {
       const [x, y, glyph] = pt;
-      const dir = glyph === '▼' ? 10 : -10;
       this.tutPointer.setText(glyph).setPosition(x, y).setVisible(true);
+      // 가리키는 방향으로 까딱인다 (▶ 는 가로, ▼/▲ 는 세로)
+      const bob = glyph === '▶' ? { x: x + 12 } : { y: y + (glyph === '▼' ? 10 : -10) };
       this.tweens.add({
-        targets: this.tutPointer, y: y + dir,
+        targets: this.tutPointer, ...bob,
         duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut',
       });
     } else {
