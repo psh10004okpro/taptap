@@ -2,13 +2,14 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from './config.ts';
 import { GameState } from './core/GameState.ts';
 import { Analytics } from './core/Analytics.ts';
+import * as Tournament from './core/Tournament.ts';
 import { BootScene } from './scenes/BootScene.ts';
 import { GameScene } from './scenes/GameScene.ts';
 import { UIScene } from './scenes/UIScene.ts';
 
 declare global {
   interface Window {
-    __taptap?: { game: Phaser.Game; state: GameState };
+    __taptap?: { game: Phaser.Game; state: GameState; tourney: typeof Tournament };
   }
 }
 
@@ -18,6 +19,9 @@ function boot(): void {
   const state = new GameState();
   const awaySec = state.load();
   state.ensureDaily();
+  // 토너먼트: 만료 자동 정산(리로드됨) / 미지급 보상 수령
+  const tourneyReward = Tournament.bootCheck(state);
+  if (tourneyReward) state.addRelics(tourneyReward.relics);
   Analytics.debug = import.meta.env.DEV; // 개발 모드에서만 콘솔 출력
   Analytics.track('session_start', {
     resumed: GameState.hasSave(),
@@ -56,6 +60,8 @@ function boot(): void {
       game.registry.set('offlineReward', { sec: awaySec, gold: reward });
     }
   }
+  if (tourneyReward) game.registry.set('tourneyReward', tourneyReward);
+  game.registry.set('tournamentMode', Tournament.isEntered());
 
   // 자동 저장: 5초 주기 + 백그라운드 전환/종료 시
   // (save() 내부에서 세이브 세대를 검사해, 다른 탭이 더 최신이면 쓰지 않는다)
@@ -76,7 +82,7 @@ function boot(): void {
   });
 
   // E2E 테스트/디버깅 훅
-  window.__taptap = { game, state };
+  window.__taptap = { game, state, tourney: Tournament };
 }
 
 boot();

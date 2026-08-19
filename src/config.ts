@@ -128,12 +128,22 @@ export const SKILLS: SkillDef[] = [
     id: 3, name: '분신술', desc: '30초간 초당 5회 자동 탭',
     unlockStage: 20, duration: 30_000, cooldown: 240_000, color: 0x9b59b6, glyph: '분',
   },
+  {
+    id: 4, name: '천상의 일격', desc: '즉시 탭 데미지 40배의 일격',
+    unlockStage: 30, duration: 0, cooldown: 90_000, color: 0xf7dc6f, glyph: '천',
+  },
+  {
+    id: 5, name: '필살 강타', desc: '15초간 크리티컬 확률 +25%p',
+    unlockStage: 40, duration: 15_000, cooldown: 180_000, color: 0xec7063, glyph: '필',
+  },
 ];
 
 export const SKILL_TAP_MULT = 3;
 export const SKILL_DPS_MULT = 3;
 export const SKILL_GOLD_MULT = 2;
 export const SHADOW_CLONE_TAPS_PER_SEC = 5;
+export const HEAVENLY_STRIKE_MULT = 40;   // 천상의 일격: 탭 데미지 배수
+export const DEADLY_STRIKE_CRIT_BONUS = 0.25; // 필살 강타: 크리 확률 가산
 
 // --- 유물 (환생 화폐로 구매하는 영구 강화) -----------------------------------
 
@@ -243,6 +253,33 @@ export const DAILY_QUESTS: QuestDef[] = [
   { id: 1, desc: '보스 5회 처치', metric: 'bossKills', target: 5, reward: 'gold', amount: 400 },
   { id: 2, desc: '스킬 3회 사용', metric: 'skillUses', target: 3, reward: 'relics', amount: 2 },
 ];
+
+// --- 업적 (평생 통계 기반, 보상: 유물) ---------------------------------------
+
+export type LifetimeMetric = 'taps' | 'kills' | 'bossKills' | 'prestiges' | 'equipDrops' | 'maxStage';
+
+export interface AchievementDef {
+  id: number;
+  desc: string;
+  metric: LifetimeMetric;
+  target: number;
+  rewardRelics: number;
+}
+
+export const ACHIEVEMENTS: AchievementDef[] = [
+  { id: 0, desc: '탭 1,000회', metric: 'taps', target: 1_000, rewardRelics: 3 },
+  { id: 1, desc: '탭 10,000회', metric: 'taps', target: 10_000, rewardRelics: 8 },
+  { id: 2, desc: '몬스터 1,000마리 처치', metric: 'kills', target: 1_000, rewardRelics: 5 },
+  { id: 3, desc: '보스 100회 처치', metric: 'bossKills', target: 100, rewardRelics: 6 },
+  { id: 4, desc: '스테이지 50 도달', metric: 'maxStage', target: 50, rewardRelics: 5 },
+  { id: 5, desc: '스테이지 100 도달', metric: 'maxStage', target: 100, rewardRelics: 12 },
+  { id: 6, desc: '환생 3회', metric: 'prestiges', target: 3, rewardRelics: 8 },
+  { id: 7, desc: '장비 10개 획득', metric: 'equipDrops', target: 10, rewardRelics: 6 },
+];
+
+// --- 주말 토너먼트 (어비셜 방식: 제로베이스 24h+ 경쟁) ------------------------
+
+export const TOURNEY_REWARD_PER_10_STAGES = 1; // 종료 시 스테이지 10당 유물 1
 
 export const MONSTER_NAMES = [
   '슬라임', '버섯돌이', '가시두꺼비', '동굴박쥐', '고블린',

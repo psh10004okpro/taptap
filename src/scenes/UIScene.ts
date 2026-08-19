@@ -9,8 +9,10 @@ import {
   EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE, HERO_PASSIVE_UNLOCK,
 } from '../config.ts';
 import type { EquipItem } from '../config.ts';
+import { ACHIEVEMENTS } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
+import * as Tournament from '../core/Tournament.ts';
 import { Leaderboard, LbEntry } from '../core/Leaderboard.ts';
 import { fmt, fmtDuration } from '../core/format.ts';
 
@@ -86,7 +88,18 @@ export class UIScene extends Phaser.Scene {
   private questRows: {
     desc: Phaser.GameObjects.Text; prog: Phaser.GameObjects.Text;
     btn: Phaser.GameObjects.Image; btnText: Phaser.GameObjects.Text;
+    bg: Phaser.GameObjects.Image;
   }[] = [];
+  private achRows: {
+    desc: Phaser.GameObjects.Text; prog: Phaser.GameObjects.Text;
+    btn: Phaser.GameObjects.Image; btnText: Phaser.GameObjects.Text;
+    bg: Phaser.GameObjects.Image;
+  }[] = [];
+  private questSubTab = 0; // 0=일일, 1=업적
+  private questToggle: { img: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
+  private tourneyText!: Phaser.GameObjects.Text;
+  private tourneyBtn!: Phaser.GameObjects.Image;
+  private tourneyBtnText!: Phaser.GameObjects.Text;
 
   constructor() { super('UI'); }
 
@@ -100,6 +113,9 @@ export class UIScene extends Phaser.Scene {
     this.rankLines = [];
     this.equipRows = [];
     this.questRows = [];
+    this.achRows = [];
+    this.questToggle = [];
+    this.questSubTab = 0;
     this.heroPage = 0;
     this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
@@ -119,6 +135,16 @@ export class UIScene extends Phaser.Scene {
     // 오프라인 보상 팝업 (main.ts 에서 지급 후 registry 에 기록)
     const off = this.registry.get('offlineReward') as { sec: number; gold: number } | undefined;
     if (off && off.gold > 0) this.showOfflinePopup(off.sec, off.gold);
+
+    // 토너먼트 정산 보상 팝업
+    const tr = this.registry.get('tourneyReward') as { stage: number; relics: number } | undefined;
+    if (tr) {
+      this.showPopup(
+        '토너먼트 결과',
+        `지난 토너먼트 기록: 스테이지 ${tr.stage}\n보상: 유물 +${tr.relics}`,
+        [{ label: '받기', on: () => { /* 이미 지급됨 */ } }],
+      );
+    }
 
     this.registry.set('uiReady', true); // E2E: 씬 준비 완료 신호
   }
@@ -187,8 +213,8 @@ export class UIScene extends Phaser.Scene {
   private buildSkillBar(): void {
     const y = SKILL_BAR_Y;
     SKILLS.forEach((s, i) => {
-      const x = 120 + i * 160;
-      const base = this.add.image(x, y, 'skill' + s.id).setDepth(5);
+      const x = 70 + i * 116;
+      const base = this.add.image(x, y, 'skill' + s.id).setDepth(5).setScale(0.92);
       const ring = this.add.image(x, y, 'skill-ring').setDepth(6).setVisible(false);
       const glyph = this.add.text(x, y - 2, s.glyph, {
         fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
@@ -333,13 +359,26 @@ export class UIScene extends Phaser.Scene {
 
   private buildQuestTab(): Phaser.GameObjects.Container {
     const c = this.add.container(0, 0).setVisible(false);
-    c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 40, '일일 퀘스트 — 매일 자정 초기화', {
-      fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
-    }).setOrigin(0.5));
 
+    // 서브탭 토글 [일일 퀘스트 | 업적]
+    ['일일 퀘스트', '업적'].forEach((label, i) => {
+      const x = GAME_WIDTH / 2 + (i === 0 ? -110 : 110);
+      const img = this.add.image(x, PANEL_Y + 44, i === 0 ? 'tab-on' : 'tab-off').setScale(1.4, 0.9);
+      const txt = this.add.text(x, PANEL_Y + 44, label, {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        this.questSubTab = i;
+        this.refreshPanel();
+      });
+      c.add([img, txt]);
+      this.questToggle.push({ img, txt });
+    });
+
+    // 일일 퀘스트 3행
     DAILY_QUESTS.forEach((q, i) => {
-      const y = PANEL_Y + 110 + i * 90;
-      c.add(this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6));
+      const y = PANEL_Y + 122 + i * 90;
+      const bg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6);
       const desc = this.add.text(40, y - 18, q.desc, {
         fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
@@ -356,8 +395,32 @@ export class UIScene extends Phaser.Scene {
           this.showToast('퀘스트 보상을 받았습니다!');
         }
       });
-      c.add([desc, prog, btn, btnText]);
-      this.questRows.push({ desc, prog, btn, btnText });
+      c.add([bg, desc, prog, btn, btnText]);
+      this.questRows.push({ desc, prog, btn, btnText, bg });
+    });
+
+    // 업적 8행 (컴팩트)
+    ACHIEVEMENTS.forEach((a, i) => {
+      const y = PANEL_Y + 100 + i * 47;
+      const bg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 0.82);
+      const desc = this.add.text(40, y - 9, a.desc, {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const prog = this.add.text(40, y + 12, '', {
+        fontFamily: FONT, fontSize: '13px', color: '#c9b8e8',
+      }).setOrigin(0, 0.5);
+      const btn = this.add.image(GAME_WIDTH - 88, y, 'btn-buy').setScale(0.85, 0.75);
+      const btnText = this.add.text(GAME_WIDTH - 88, y, '', {
+        fontFamily: FONT, fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        if (this.state.claimAch(a.id)) {
+          this.pop(btn);
+          this.showToast(`업적 달성! 유물 +${a.rewardRelics}`);
+        }
+      });
+      c.add([bg, desc, prog, btn, btnText]);
+      this.achRows.push({ desc, prog, btn, btnText, bg });
     });
     return c;
   }
@@ -494,19 +557,72 @@ export class UIScene extends Phaser.Scene {
     subBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.submitScore());
     c.add([nameBtn, nameBtnT, subBtn, subBtnT]);
 
-    this.rankStatus = this.add.text(GAME_WIDTH / 2, PANEL_Y + 80, '', {
+    // 주말 토너먼트 카드
+    c.add(this.add.image(GAME_WIDTH / 2, PANEL_Y + 92, 'row').setScale(1, 1.1));
+    this.tourneyText = this.add.text(40, PANEL_Y + 92, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#f7dc6f', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.tourneyBtn = this.add.image(GAME_WIDTH - 96, PANEL_Y + 92, 'btn-buy');
+    this.tourneyBtnText = this.add.text(GAME_WIDTH - 96, PANEL_Y + 92, '', {
+      fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.tourneyBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      const st = Tournament.status();
+      if (st.kind === 'open') {
+        this.showPopup(
+          '주말 토너먼트',
+          '새 세이브로 최고 스테이지 경쟁!\n종료 시 스테이지 10당 유물 1개.\n메인 진행은 안전하게 보관됩니다.',
+          [
+            { label: '참가하기', on: () => Tournament.enter(this.state) },
+            { label: '취소', on: () => { /* noop */ } },
+          ],
+        );
+      } else if (st.kind === 'running') {
+        this.showPopup(
+          '토너먼트 종료',
+          `현재 기록: 스테이지 ${this.state.maxStage}\n지금 종료하면 유물 ${Math.floor(this.state.maxStage / 10)}개를 받고\n메인 세이브로 돌아갑니다.`,
+          [
+            { label: '종료하기', on: () => Tournament.finish(this.state) },
+            { label: '계속하기', on: () => { /* noop */ } },
+          ],
+        );
+      }
+    });
+    c.add([this.tourneyText, this.tourneyBtn, this.tourneyBtnText]);
+
+    this.rankStatus = this.add.text(GAME_WIDTH / 2, PANEL_Y + 128, '', {
       fontFamily: FONT, fontSize: '15px', color: '#9a8bb8',
     }).setOrigin(0.5);
     c.add(this.rankStatus);
 
-    for (let i = 0; i < 10; i++) {
-      const line = this.add.text(50, PANEL_Y + 116 + i * 42, '', {
+    for (let i = 0; i < 9; i++) {
+      const line = this.add.text(50, PANEL_Y + 158 + i * 41, '', {
         fontFamily: FONT, fontSize: '19px', color: '#ffffff',
       }).setOrigin(0, 0.5);
       c.add(line);
       this.rankLines.push(line);
     }
     return c;
+  }
+
+  private refreshTourneyCard(): void {
+    const st = Tournament.status();
+    const hrs = (ms: number) => Math.max(1, Math.ceil(ms / 3_600_000));
+    if (st.kind === 'closed') {
+      const best = Tournament.historyBest();
+      this.tourneyText.setText(`주말 토너먼트 — ${hrs(st.opensInMs)}시간 후 시작`
+        + (best ? `  (최고 ${best.stage})` : ''));
+      this.tourneyBtnText.setText('대기');
+      this.setEnabled(this.tourneyBtn, false);
+    } else if (st.kind === 'open') {
+      this.tourneyText.setText(`토너먼트 진행 중! 마감까지 ${hrs(st.closesInMs)}시간`);
+      this.tourneyBtnText.setText('참가');
+      this.setEnabled(this.tourneyBtn, true);
+    } else {
+      this.tourneyText.setText(`참가 중 — 기록 ${this.state.maxStage} · ${hrs(st.closesInMs)}시간 남음`);
+      this.tourneyBtnText.setText('종료');
+      this.setEnabled(this.tourneyBtn, true);
+    }
   }
 
   // --- 랭킹 동작 ------------------------------------------------------------
@@ -543,7 +659,7 @@ export class UIScene extends Phaser.Scene {
     this.rankStatus.setText(this.lb.mode === 'local'
       ? '오프라인 모드 — Supabase 미설정 시 로컬 기록만 표시됩니다'
       : '불러오는 중...');
-    const entries = await this.lb.top(10);
+    const entries = await this.lb.top(9);
     if (entries === null) {
       this.rankStatus.setText('서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
       this.renderRanking([]);
@@ -615,7 +731,9 @@ export class UIScene extends Phaser.Scene {
 
   private refreshStage(): void {
     const st = this.state;
-    this.stageText.setText(`스테이지 ${st.stage}`);
+    const tourney = this.registry.get('tournamentMode') === true;
+    this.stageText.setText(tourney ? `토너먼트 · 스테이지 ${st.stage}` : `스테이지 ${st.stage}`)
+      .setColor(tourney ? '#f7dc6f' : '#ffffff');
     if (st.mode === 'boss') {
       this.progText.setText('보스 전투 중!').setColor('#ff9c9c');
     } else {
@@ -683,17 +801,31 @@ export class UIScene extends Phaser.Scene {
       ? `세트 효과 발동! 모든 데미지 +${Math.round(setPct * 100)}%`
       : '같은 등급 3종 장착 시 세트 효과 (모든 데미지 +10~60%)');
 
-    // 퀘스트 탭
+    // 퀘스트 탭 (서브탭: 일일/업적)
     st.ensureDaily();
+    this.questToggle.forEach((t, i) => t.img.setTexture(i === this.questSubTab ? 'tab-on' : 'tab-off'));
+    const showDaily = this.questSubTab === 0;
     DAILY_QUESTS.forEach((q, i) => {
       const row = this.questRows[i];
+      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(showDaily));
+      if (!showDaily) return;
       const prog = st.questProgress(q.id);
       const claimed = st.daily.claimed[q.id];
       const rewardTxt = q.reward === 'gold' ? '골드 보상' : `유물 ${q.amount}개`;
       row.prog.setText(claimed ? '완료!' : `${prog} / ${q.target} · ${rewardTxt}`);
       row.btnText.setText(claimed ? '완료' : '받기');
-      this.setEnabled(row.btn, st.canClaimQuest(q.id));
+      this.setEnabled(row.btn, showDaily && st.canClaimQuest(q.id));
     });
+    ACHIEVEMENTS.forEach((a, i) => {
+      const row = this.achRows[i];
+      [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(!showDaily));
+      if (showDaily) return;
+      const claimed = st.achClaimed[a.id];
+      row.prog.setText(claimed ? '완료!' : `${fmt(st.achProgress(a.id))} / ${fmt(a.target)} · 유물 ${a.rewardRelics}`);
+      row.btnText.setText(claimed ? '완료' : '받기');
+      this.setEnabled(row.btn, !showDaily && st.canClaimAch(a.id));
+    });
+    this.refreshTourneyCard();
 
     // 광고 버튼 상태
     if (st.isGoldBoostActive()) {

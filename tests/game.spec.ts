@@ -25,6 +25,14 @@ declare global {
         daily: { date: string; counters: Record<string, number>; claimed: boolean[] };
         questProgress(id: number): number; canClaimQuest(id: number): boolean;
         claimQuest(id: number): boolean; ensureDaily(): void;
+        critChance(): number;
+        lifetime: Record<string, number>; achClaimed: boolean[];
+        achProgress(id: number): number; canClaimAch(id: number): boolean;
+        claimAch(id: number): boolean;
+      };
+      tourney: {
+        status(now?: Date): { kind: string; opensInMs?: number; closesInMs?: number };
+        isEntered(): boolean;
       };
     };
   }
@@ -440,6 +448,68 @@ test('P1 영웅 페이징: 2페이지에서 상위 영웅 정보가 표시되고
   const lvl = await page.evaluate(() => window.__taptap!.state.heroLevels[8]);
   expect(lvl).toBeGreaterThanOrEqual(1);
   await page.screenshot({ path: 'screenshots/11-hero-page2.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('P2 신규 스킬: 필살 강타 크리 증가, 천상의 일격 즉발 처치', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.maxStage = 50; // 전 스킬 해금
+    const cc0 = s.critChance();
+    const ok5 = s.tryActivateSkill(5);        // 필살 강타 +25%p
+    const cc1 = s.critChance();
+    const kills0 = s.kills + 0;
+    const ok4 = s.tryActivateSkill(4);        // 천상의 일격: 탭뎀 40배 → 1스테이지 몬스터 원킬
+    return { ok4, ok5, cc0, cc1, kills0 };
+  });
+  expect(r.ok5).toBe(true);
+  expect(r.cc1).toBeGreaterThan(r.cc0 + 0.2);
+  expect(r.ok4).toBe(true);
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => ({
+    gold: window.__taptap!.state.gold,
+    kills: window.__taptap!.state.kills,
+  }));
+  expect(after.gold).toBeGreaterThan(0); // 버스트로 처치 발생
+  expect(errors).toHaveLength(0);
+});
+
+test('P2 업적: 평생 통계 달성 → 유물 보상 수령 (중복 불가)', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.lifetime.taps = 1_000;                  // 업적 0: 탭 1,000회
+    const can = s.canClaimAch(0);
+    const relics0 = s.relics;
+    const ok = s.claimAch(0);
+    const again = s.claimAch(0);
+    return { can, ok, again, gained: s.relics - relics0 };
+  });
+  expect(r.can).toBe(true);
+  expect(r.ok).toBe(true);
+  expect(r.again).toBe(false);
+  expect(r.gained).toBe(3);
+  expect(errors).toHaveLength(0);
+});
+
+test('P2 토너먼트: 주말 창 계산과 참가 상태가 올바르다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const t = window.__taptap!.tourney;
+    return {
+      wed: t.status(new Date('2026-08-19T12:00:00')).kind,  // 수요일 → closed
+      sat: t.status(new Date('2026-08-22T12:00:00')).kind,  // 토요일 → open
+      sun: t.status(new Date('2026-08-23T23:00:00')).kind,  // 일요일 밤 → open
+      mon: t.status(new Date('2026-08-24T00:30:00')).kind,  // 월요일 → closed
+      entered: t.isEntered(),
+    };
+  });
+  expect(r.wed).toBe('closed');
+  expect(r.sat).toBe('open');
+  expect(r.sun).toBe('open');
+  expect(r.mon).toBe('closed');
+  expect(r.entered).toBe(false);
   expect(errors).toHaveLength(0);
 });
 

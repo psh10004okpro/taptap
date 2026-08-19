@@ -12,6 +12,7 @@
 import {
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT, SHADOW_CLONE_TAPS_PER_SEC,
+  HEAVENLY_STRIKE_MULT, DEADLY_STRIKE_CRIT_BONUS,
   monsterHp, killGold, relicsFor,
 } from '../src/config.ts';
 import { GameState } from '../src/core/GameState.ts';
@@ -50,13 +51,21 @@ function skillAvg(s: GameState, p: SimProfile, id: number, mult: number): number
 
 /** 탭 + 영웅을 합친 실효 DPS (스킬 평균 가동률 포함) */
 function effDps(s: GameState, p: SimProfile): number {
-  const critFactor = 1 + s.critChance() * (s.critMult() - 1);
+  // 필살 강타: 평균 가동률만큼 크리 확률 가산 근사
+  let chance = s.critChance();
+  if (p.useSkills && s.isSkillUnlocked(5)) {
+    chance = Math.min(0.75, chance + DEADLY_STRIKE_CRIT_BONUS * (SKILLS[5].duration / SKILLS[5].cooldown));
+  }
+  const critFactor = 1 + chance * (s.critMult() - 1);
   const cloneTps = (p.useSkills && s.isSkillUnlocked(3))
     ? (SKILLS[3].duration / SKILLS[3].cooldown) * SHADOW_CLONE_TAPS_PER_SEC : 0;
   const tapDps = s.tapDamage() * skillAvg(s, p, 0, SKILL_TAP_MULT) * critFactor
     * (p.tapsPerSec + cloneTps);
+  // 천상의 일격: 쿨마다 1회 버스트를 평균 DPS 로 환산
+  const hsDps = (p.useSkills && s.isSkillUnlocked(4))
+    ? s.tapDamage() * HEAVENLY_STRIKE_MULT / (SKILLS[4].cooldown / 1000) : 0;
   const heroDps = s.totalDps() * skillAvg(s, p, 1, SKILL_DPS_MULT);
-  return tapDps + heroDps;
+  return tapDps + hsDps + heroDps;
 }
 
 function goldMult(s: GameState, p: SimProfile): number {

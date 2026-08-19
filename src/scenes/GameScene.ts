@@ -5,7 +5,7 @@
 import Phaser from 'phaser';
 import {
   COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
-  SHADOW_CLONE_TAPS_PER_SEC, MONSTER_NAMES, BOSS_NAMES, monsterHp,
+  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, MONSTER_NAMES, BOSS_NAMES, monsterHp,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
@@ -90,6 +90,14 @@ export class GameScene extends Phaser.Scene {
     // 환생 시 몬스터 리셋
     this.state.on('prestige', () => { this.spawnTimer?.remove(false); this.spawnTimer = null; this.spawn(); });
 
+    // 천상의 일격: 즉발 대미지 버스트
+    this.state.on('skill', (...args: unknown[]) => {
+      if (args[0] !== 4 || this.dead) return;
+      const dmg = this.state.tapDamage() * HEAVENLY_STRIKE_MULT;
+      this.cameras.main.flash(180, 255, 240, 160);
+      this.applyDamage(dmg, true, COMBAT_CENTER.x, COMBAT_CENTER.y - 180);
+    });
+
     this.spawn();
   }
 
@@ -148,6 +156,7 @@ export class GameScene extends Phaser.Scene {
       targets: ring, scale: 1.1, alpha: 0, duration: 260,
       onComplete: () => ring.destroy(),
     });
+    this.state.recordTap(); // 업적 통계 (빗나간 탭 포함 — 사람의 입력 기준)
     if (this.dead) return;
 
     const crit = Math.random() < this.state.critChance();

@@ -20,9 +20,10 @@ import {
   HERO_PASSIVE_UNLOCK, HERO_COST_DISCOUNT_CAP,
   AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
   EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, EQUIP_SET_BONUS, DAILY_QUESTS,
+  ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
-import type { EquipItem, QuestMetric, EffectType } from '../config.ts';
+import type { EquipItem, QuestMetric, EffectType, LifetimeMetric } from '../config.ts';
 import { Analytics } from './Analytics.ts';
 
 export type Mode = 'farm' | 'boss';
@@ -50,6 +51,8 @@ interface SaveData {
   goldBoostUntil: number;
   equipment: (EquipItem | null)[];
   daily: DailyState;
+  lifetime: Record<string, number>;
+  achClaimed: boolean[];
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
@@ -113,6 +116,11 @@ export class GameState extends Emitter {
   /** 슬롯별 장착 장비 (보스 드롭, 상위 아이템 자동 교체) */
   equipment: (EquipItem | null)[] = EQUIP_SLOTS.map(() => null);
   daily: DailyState = freshDaily();
+  /** 평생 누적 통계 (업적/분석용) */
+  lifetime: Record<Exclude<LifetimeMetric, 'maxStage'>, number> = {
+    taps: 0, kills: 0, bossKills: 0, prestiges: 0, equipDrops: 0,
+  };
+  achClaimed: boolean[] = ACHIEVEMENTS.map(() => false);
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
@@ -198,7 +206,8 @@ export class GameState extends Emitter {
   }
 
   critChance(): number {
-    return Math.min(0.5, BASE_CRIT_CHANCE + this.bonus('critChance'));
+    const skill = this.isSkillActive(5) ? DEADLY_STRIKE_CRIT_BONUS : 0;
+    return Math.min(0.75, Math.min(0.5, BASE_CRIT_CHANCE + this.bonus('critChance')) + skill);
   }
 
   critMult(): number {
@@ -295,14 +304,42 @@ export class GameState extends Emitter {
       && !this.isSkillActive(s.id) && this.skillCooldownLeft(s.id) > 0);
   }
 
+  /** 사람의 실제 탭 1회 기록 (업적 통계) */
+  recordTap(): void {
+    this.lifetime.taps += 1;
+  }
+
+  // --- 업적 ----------------------------------------------------------------
+
+  achProgress(id: number): number {
+    const a = ACHIEVEMENTS[id];
+    const v = a.metric === 'maxStage' ? this.maxStage : this.lifetime[a.metric];
+    return Math.min(v, a.target);
+  }
+
+  canClaimAch(id: number): boolean {
+    return !this.achClaimed[id] && this.achProgress(id) >= ACHIEVEMENTS[id].target;
+  }
+
+  claimAch(id: number): boolean {
+    if (!this.canClaimAch(id)) return false;
+    this.achClaimed[id] = true;
+    this.addRelics(ACHIEVEMENTS[id].rewardRelics);
+    Analytics.track('ach_claim', { id, reward: ACHIEVEMENTS[id].rewardRelics });
+    this.emit('quest');
+    return true;
+  }
+
   // --- 전투 진행 -----------------------------------------------------------
 
   /** 몬스터 처치 처리. 골드 지급 + 진행/보스 전환 + 드롭/퀘스트. */
   recordKill(isBoss: boolean): void {
     this.addGold(Math.round(killGold(this.stage, isBoss) * this.goldMult()));
     this.bumpQuest('kills');
+    this.lifetime.kills += 1;
     if (isBoss) {
       this.bumpQuest('bossKills');
+      this.lifetime.bossKills += 1;
       Analytics.track('stage_clear', {
         stage: this.stage,
         dwellMs: Date.now() - this.stageEnteredAt,
@@ -383,6 +420,7 @@ export class GameState extends Emitter {
       statPct: equipStatPct(rarity, this.stage),
       stage: this.stage,
     };
+    this.lifetime.equipDrops += 1;
     const cur = this.equipment[slot];
     const equipped = !cur || item.statPct > cur.statPct;
     if (equipped) this.equipment[slot] = item;
@@ -484,6 +522,7 @@ export class GameState extends Emitter {
     if (!this.canPrestige()) return false;
     const gain = this.prestigeGain();
     Analytics.track('prestige', { atStage: this.maxStage, gained: gain, totalRelics: this.relicsEarned + gain });
+    this.lifetime.prestiges += 1;
     this.gold = 0;
     this.stage = 1;
     this.kills = 0;
@@ -519,7 +558,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 3,
+      v: 4,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -535,6 +574,8 @@ export class GameState extends Emitter {
       goldBoostUntil: this.goldBoostUntil,
       equipment: this.equipment,
       daily: this.daily,
+      lifetime: this.lifetime,
+      achClaimed: this.achClaimed,
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
@@ -605,6 +646,14 @@ export class GameState extends Emitter {
       } else {
         this.daily = freshDaily();
       }
+      this.lifetime = {
+        taps: Math.max(0, Math.floor(num(d.lifetime?.taps, 0))),
+        kills: Math.max(0, Math.floor(num(d.lifetime?.kills, 0))),
+        bossKills: Math.max(0, Math.floor(num(d.lifetime?.bossKills, 0))),
+        prestiges: Math.max(0, Math.floor(num(d.lifetime?.prestiges, 0))),
+        equipDrops: Math.max(0, Math.floor(num(d.lifetime?.equipDrops, 0))),
+      };
+      this.achClaimed = ACHIEVEMENTS.map((a) => d.achClaimed?.[a.id] === true);
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개
