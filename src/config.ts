@@ -6,10 +6,13 @@
 export const GAME_WIDTH = 720;
 export const GAME_HEIGHT = 1280;
 
-// 레이아웃 (세로 모드 고정)
+// 레이아웃 (세로 모드 고정) — Scene/테스트가 공유하는 단일 출처
 export const TOP_BAR_H = 150;
 export const PANEL_Y = 748; // 하단 패널 시작
 export const COMBAT_CENTER = { x: 360, y: 470 };
+export const COMBAT_BOTTOM = 646;  // 전투 탭 존 하한 (스킬바 위)
+export const SKILL_BAR_Y = 684;    // 스킬 버튼 중심 y
+export const TAB_Y = PANEL_Y - 2;  // 패널 탭 버튼 중심 y
 
 export const MONSTERS_PER_STAGE = 10; // 9마리 + 보스
 export const BOSS_TIME_LIMIT = 30_000; // ms (유물로 연장 가능)

@@ -17,7 +17,8 @@ declare global {
         tryActivateSkill(id: number): boolean; isSkillActive(id: number): boolean;
         skillCooldownLeft(id: number): number; isSkillUnlocked(id: number): boolean;
         canPrestige(): boolean; prestigeGain(): number; doPrestige(): boolean;
-        addGold(n: number): void; save(): void;
+        addGold(n: number): void; addRelics(n: number): void;
+        save(): void; isStale(): boolean;
       };
     };
   }
@@ -35,8 +36,12 @@ async function setup(page: Page): Promise<string[]> {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
-  // 씬 초기화 여유
-  await page.waitForTimeout(600);
+  // UIScene 준비 완료까지 기능적으로 대기 (고정 sleep 은 콜드 스타트에서 플레이키)
+  await page.waitForFunction(
+    () => (window.__taptap!.game as { registry: { get(k: string): unknown } })
+      .registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
   return errors;
 }
 
@@ -239,12 +244,74 @@ test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된
   expect(errors).toHaveLength(0);
 });
 
-test('유물 탭 UI: 목록과 보유 유물이 표시된다', async ({ page }) => {
+test('유물 탭 UI: 탭 전환 후 구매 버튼 클릭이 실제로 동작한다', async ({ page }) => {
   const errors = await setup(page);
-  await page.evaluate(() => { window.__taptap!.state.relics = 42; });
+  await page.evaluate(() => window.__taptap!.state.addRelics(42)); // 이벤트 발행 경로
   await tapGame(page, 290, 746);                  // [유물] 탭
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
+  await tapGame(page, 624, 864);                  // 첫 유물(파괴의 검) 구매 버튼
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => ({
+    lvl: window.__taptap!.state.artifactLevels[0],
+    relics: window.__taptap!.state.relics,
+  }));
+  expect(r.lvl).toBe(1);                          // 클릭이 UI 를 관통해 상태를 바꿨다
+  expect(r.relics).toBeLessThan(42);
   await page.screenshot({ path: 'screenshots/07-artifacts.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('시계 조작 방어: 미래 쿨다운·미래 lastSeen 세이브가 클램프된다', async ({ page }) => {
+  const errors = await setup(page);
+  // 미래로 뻥튀기된 세이브 주입 (시계 롤백 상황 재현)
+  await page.evaluate(() => {
+    const now = Date.now();
+    const save = {
+      // gen 999: 리로드 직전 beforeunload 자동저장이 이 주입 세이브를
+      // 덮어쓰지 못하게 (세대 가드가 외부 최신 세이브를 보호하는지도 겸사 검증)
+      v: 2, gen: 999, gold: 500, stage: 3, kills: 2, maxStage: 30, tapLevel: 1,
+      heroLevels: [0, 0, 0, 0, 0, 0, 0, 0], relics: 0, relicsEarned: 0,
+      artifactLevels: [0, 0, 0, 0, 0, 0],
+      skillReadyAt: [now + 86_400_000, 0, 0, 0],      // 24시간 잠금 시도
+      skillActiveUntil: [now + 86_400_000, 0, 0, 0],  // 24시간 버프 시도
+      playerName: '', bossFailed: false,
+      lastSeen: now + 86_400_000,                     // 미래 lastSeen
+    };
+    localStorage.setItem('taptap-titans-v1', JSON.stringify(save));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  const r = await page.evaluate(() => ({
+    cd: window.__taptap!.state.skillCooldownLeft(0),
+    gold: window.__taptap!.state.gold,
+  }));
+  expect(r.cd).toBeLessThanOrEqual(120_000); // 화염검 쿨다운(2분) 이하로 클램프
+  expect(r.gold).toBe(500);                  // 미래 lastSeen → 오프라인 보상 없음
+  expect(errors).toHaveLength(0);
+});
+
+test('멀티탭 방어: 다른 탭이 저장하면 이 탭은 stale 이 되어 덮어쓰지 않는다', async ({ page, context }) => {
+  const errors = await setup(page);
+  // 탭 A 진행 저장
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addRelics(10);
+    s.save();
+  });
+  // 탭 B 를 열어 같은 게임 구동 → B 의 저장이 더 새 세대가 된다
+  const pageB = await context.newPage();
+  await pageB.goto('/');
+  await pageB.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  await pageB.evaluate(() => window.__taptap!.state.save());
+  await page.waitForTimeout(500); // storage 이벤트 전파
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const stale = s.isStale();
+    s.save(); // stale 이면 무시되어야 함
+    return { stale };
+  });
+  expect(r.stale).toBe(true);
+  await pageB.close();
   expect(errors).toHaveLength(0);
 });
 

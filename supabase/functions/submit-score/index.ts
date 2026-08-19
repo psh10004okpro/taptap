@@ -7,6 +7,7 @@
 //   4. 제출 간격 최소 30초 (레이트 리밋)
 //   5. 진행 속도 상한: 증가분 <= max(60, 경과초) — 초당 1스테이지면
 //      정상 플레이로는 도달 불가한 수준의 널널한 상한이지만 1->5000 점프는 차단
+//      (첫 제출은 계정 생성 시각 기준으로 같은 상한을 적용)
 //   6. 유물 수치는 스테이지 곡선(relicsFor)의 이론 상한을 넘을 수 없음
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -74,6 +75,14 @@ Deno.serve(async (req) => {
       const gained = stage - prev.max_stage;
       const allowance = Math.max(60, Math.floor(elapsedMs / 1000)); // 초당 1스테이지
       if (gained > allowance) return fail(400, "implausible progress");
+    } else {
+      // 첫 제출: 계정 생성 이후 경과 시간 기준으로 같은 속도 상한을 적용.
+      // 갓 만든 익명 계정이 첫 호출 한 번으로 최고 스테이지를 주입하는 경로를 차단한다.
+      const ageSec = Math.floor(
+        (Date.now() - new Date(user.created_at).getTime()) / 1000,
+      );
+      const allowance = Math.max(60, ageSec); // 초당 1스테이지
+      if (stage > allowance) return fail(400, "implausible first submit");
     }
 
     const { error: upsertErr } = await admin.from("leaderboard").upsert({

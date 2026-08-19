@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
 import {
-  COMBAT_CENTER, PANEL_Y, TOP_BAR_H,
+  COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
   SHADOW_CLONE_TAPS_PER_SEC, MONSTER_NAMES, BOSS_NAMES, monsterHp,
 } from '../config';
 import { GameState } from '../core/GameState';
@@ -28,6 +28,8 @@ export class GameScene extends Phaser.Scene {
   private bossDeadline = 0;
   private bossLimit = 1;   // 이번 보스전의 제한시간 (유물 반영, 스폰 시 고정)
   private cloneTick = 0;   // 분신술 자동 탭 타이밍
+  private baseScale = 1;   // 현재 몬스터의 기준 스케일 (반동 트윈 누적 방지)
+  private spawnTimer: Phaser.Time.TimerEvent | null = null; // 스폰 예약 단일화
 
   private floatPool: Phaser.GameObjects.Text[] = [];
   private floatIdx = 0;
@@ -71,8 +73,7 @@ export class GameScene extends Phaser.Scene {
       this.coinPool.push(this.add.image(0, 0, 'coin').setVisible(false).setDepth(19));
     }
 
-    // 탭 입력: 전투 영역만 (스킬바 y=646 위쪽 — UI 탭이 공격으로 새지 않게)
-    const COMBAT_BOTTOM = 646;
+    // 탭 입력: 전투 영역만 (스킬바 위쪽 — UI 탭이 공격으로 새지 않게)
     const zone = this.add.zone(0, TOP_BAR_H, 720, COMBAT_BOTTOM - TOP_BAR_H)
       .setOrigin(0, 0).setInteractive();
     zone.on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
@@ -87,12 +88,21 @@ export class GameScene extends Phaser.Scene {
     });
 
     // 환생 시 몬스터 리셋
-    this.state.on('prestige', () => this.spawn());
+    this.state.on('prestige', () => { this.spawnTimer?.remove(false); this.spawnTimer = null; this.spawn(); });
 
     this.spawn();
   }
 
   // --- 스폰 ---------------------------------------------------------------
+
+  /** 스폰 예약 단일 창구 — 기존 예약을 취소해 이중 스폰(보스 HP/타이머 리셋)을 막는다 */
+  private scheduleSpawn(delay: number): void {
+    this.spawnTimer?.remove(false);
+    this.spawnTimer = this.time.delayedCall(delay, () => {
+      this.spawnTimer = null;
+      this.spawn();
+    });
+  }
 
   private spawn(): void {
     const st = this.state;
@@ -118,6 +128,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const targetScale = this.isBoss ? 1.25 : 1;
+    this.baseScale = targetScale;
+    this.tweens.killTweensOf(this.monster);
     this.monster.setPosition(COMBAT_CENTER.x, COMBAT_CENTER.y).setAlpha(0).setScale(targetScale * 0.6);
     this.monsterShadow.setScale(this.isBoss ? 1.4 : 1);
     this.tweens.add({
@@ -141,10 +153,13 @@ export class GameScene extends Phaser.Scene {
     const crit = Math.random() < this.state.critChance();
     const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
     this.applyDamage(dmg, crit, x, Math.min(y, PANEL_Y - 120));
-    // 몬스터 반동
+    // 몬스터 반동 — 기준 스케일 대비 절대값으로, 연타 시 누적 수축 방지
+    this.tweens.killTweensOf(this.monster);
+    this.monster.setScale(this.baseScale);
     this.tweens.add({
-      targets: this.monster, scaleX: this.monster.scale * 0.94, scaleY: this.monster.scale * 1.05,
+      targets: this.monster, scaleX: this.baseScale * 0.94, scaleY: this.baseScale * 1.05,
       duration: 45, yoyo: true,
+      onComplete: () => { if (!this.dead) this.monster.setScale(this.baseScale); },
     });
   }
 
@@ -218,12 +233,13 @@ export class GameScene extends Phaser.Scene {
       this.game.events.emit('boss-timer', -1);
     }
     this.burstCoins(wasBoss ? 8 : 4);
+    this.tweens.killTweensOf(this.monster);
     this.tweens.add({
-      targets: this.monster, alpha: 0, scaleY: this.monster.scale * 0.3,
-      scaleX: this.monster.scale * 1.25, duration: 180, ease: 'Quad.In',
+      targets: this.monster, alpha: 0, scaleY: this.baseScale * 0.3,
+      scaleX: this.baseScale * 1.25, duration: 180, ease: 'Quad.In',
     });
     this.state.recordKill(wasBoss); // 골드 지급 + 모드 전환
-    this.time.delayedCall(260, () => this.spawn());
+    this.scheduleSpawn(260);
   }
 
   /** 보스 시간 초과 → 도주 */
@@ -235,14 +251,15 @@ export class GameScene extends Phaser.Scene {
       targets: this.monster, x: 900, alpha: 0, duration: 320, ease: 'Quad.In',
     });
     this.state.failBoss();
-    this.time.delayedCall(360, () => this.spawn());
+    this.scheduleSpawn(360);
   }
 
   private onEngageBoss(): void {
     if (!this.state.engageBoss()) return;
     this.dead = true; // 현재 일반 몬스터 즉시 교체
+    this.tweens.killTweensOf(this.monster);
     this.tweens.add({ targets: this.monster, alpha: 0, duration: 120 });
-    this.time.delayedCall(140, () => this.spawn());
+    this.scheduleSpawn(140);
   }
 
   // --- 이펙트 -------------------------------------------------------------

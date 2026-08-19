@@ -86,8 +86,8 @@ export class Leaderboard {
     return error ? '제출이 거부되었습니다. 잠시 후 다시 시도하세요.' : null;
   }
 
-  /** 상위 N명 + 내 항목 표시 */
-  async top(n: number): Promise<LbEntry[]> {
+  /** 상위 N명 + 내 항목 표시. null = 원격 연결 실패 (빈 랭킹과 구분) */
+  async top(n: number): Promise<LbEntry[] | null> {
     if (this.mode === 'local') {
       let me: LbEntry | null = null;
       try {
@@ -98,15 +98,19 @@ export class Leaderboard {
       return all.sort((a, b) => b.stage - a.stage).slice(0, n);
     }
     await this.ready;
-    if (!this.client) return [];
-    const { data } = await this.client
-      .from('leaderboard')
-      .select('name, max_stage, relics')
-      .order('max_stage', { ascending: false })
-      .limit(n);
-    if (!Array.isArray(data)) return [];
-    return (data as { name: string; max_stage: number; relics: number }[]).map((r) => ({
-      name: r.name, stage: r.max_stage, relics: r.relics ?? 0, isMe: false,
-    }));
+    if (!this.client) return null;
+    try {
+      const { data, error } = await this.client
+        .from('leaderboard')
+        .select('name, max_stage, relics')
+        .order('max_stage', { ascending: false })
+        .limit(n);
+      if (error || !Array.isArray(data)) return null;
+      return (data as { name: string; max_stage: number; relics: number }[]).map((r) => ({
+        name: r.name, stage: r.max_stage, relics: r.relics ?? 0, isMe: false,
+      }));
+    } catch {
+      return null;
+    }
   }
 }

@@ -4,7 +4,8 @@
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
 import {
-  GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE,
+  GAME_WIDTH, GAME_HEIGHT, PANEL_Y, SKILL_BAR_Y, TAB_Y,
+  HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE,
 } from '../config';
 import { GameState } from '../core/GameState';
 import { Leaderboard, LbEntry } from '../core/Leaderboard';
@@ -49,6 +50,7 @@ export class UIScene extends Phaser.Scene {
   private prestigeLabel!: Phaser.GameObjects.Text;
 
   private skillBtns: SkillBtn[] = [];
+  private skillSig = '';
 
   private tabButtons: { img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text }[] = [];
   private tabContents: Phaser.GameObjects.Container[] = [];
@@ -69,6 +71,14 @@ export class UIScene extends Phaser.Scene {
   constructor() { super('UI'); }
 
   create(): void {
+    // 씬 재시작에 대비해 수집 배열을 리셋 (파괴된 이전 세대 객체 참조 방지)
+    this.skillBtns = [];
+    this.tabButtons = [];
+    this.tabContents = [];
+    this.heroRows = [];
+    this.artifactRows = [];
+    this.rankLines = [];
+    this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
     this.lb = new Leaderboard();
 
@@ -86,6 +96,8 @@ export class UIScene extends Phaser.Scene {
     // 오프라인 보상 팝업 (main.ts 에서 지급 후 registry 에 기록)
     const off = this.registry.get('offlineReward') as { sec: number; gold: number } | undefined;
     if (off && off.gold > 0) this.showOfflinePopup(off.sec, off.gold);
+
+    this.registry.set('uiReady', true); // E2E: 씬 준비 완료 신호
   }
 
   // --- 상단 HUD -----------------------------------------------------------
@@ -126,7 +138,7 @@ export class UIScene extends Phaser.Scene {
   // --- 스킬바 --------------------------------------------------------------
 
   private buildSkillBar(): void {
-    const y = 684;
+    const y = SKILL_BAR_Y;
     SKILLS.forEach((s, i) => {
       const x = 120 + i * 160;
       const base = this.add.image(x, y, 'skill' + s.id).setDepth(5);
@@ -153,6 +165,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refreshSkillBar(): void {
+    if (!this.dpsText) return; // create 완료 전 호출 방어
     const st = this.state;
     SKILLS.forEach((s, i) => {
       const b = this.skillBtns[i];
@@ -184,6 +197,12 @@ export class UIScene extends Phaser.Scene {
     });
     // 전투 함성 등으로 DPS 표기가 시간에 따라 변하므로 함께 갱신
     this.dpsText.setText(`DPS ${fmt(this.state.totalDps())}`);
+    // 스킬 활성 상태가 바뀐 순간(발동/만료) 패널 수치도 갱신 — 배율 표기 스테일 방지
+    const sig = SKILLS.map((s) => (st.isSkillActive(s.id) ? '1' : '0')).join('');
+    if (sig !== this.skillSig) {
+      this.skillSig = sig;
+      this.refreshPanel();
+    }
   }
 
   private buildBossButton(): void {
@@ -208,8 +227,8 @@ export class UIScene extends Phaser.Scene {
     // 탭 버튼
     TAB_NAMES.forEach((label, i) => {
       const x = 130 + i * 160;
-      const img = this.add.image(x, PANEL_Y - 2, i === 0 ? 'tab-on' : 'tab-off');
-      const txt = this.add.text(x, PANEL_Y - 2, label, {
+      const img = this.add.image(x, TAB_Y, i === 0 ? 'tab-on' : 'tab-off');
+      const txt = this.add.text(x, TAB_Y, label, {
         fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
       img.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.setTab(i));
@@ -357,8 +376,7 @@ export class UIScene extends Phaser.Scene {
 
   private myName(): string {
     if (!this.state.playerName) {
-      this.state.playerName = `용사${1000 + Math.floor(Math.random() * 9000)}`;
-      this.state.save();
+      this.state.setPlayerName(`용사${1000 + Math.floor(Math.random() * 9000)}`);
     }
     return this.state.playerName;
   }
@@ -368,10 +386,7 @@ export class UIScene extends Phaser.Scene {
     // 간단한 이름 입력 — 모바일/데스크톱 공용. 취소/헤드리스 환경이면 유지.
     const next = typeof window.prompt === 'function'
       ? window.prompt('닉네임 (2~12자)', cur) : null;
-    if (next && next.trim().length >= 2 && next.trim().length <= 12) {
-      this.state.playerName = next.trim();
-      this.state.save();
-    }
+    if (next) this.state.setPlayerName(next);
     this.refreshRankHeader();
   }
 
@@ -392,6 +407,11 @@ export class UIScene extends Phaser.Scene {
       ? '오프라인 모드 — Supabase 미설정 시 로컬 기록만 표시됩니다'
       : '불러오는 중...');
     const entries = await this.lb.top(10);
+    if (entries === null) {
+      this.rankStatus.setText('서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
+      this.renderRanking([]);
+      return;
+    }
     if (this.lb.mode === 'remote') {
       this.rankStatus.setText(entries.length === 0 ? '기록이 없습니다' : '');
     }
@@ -460,6 +480,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refreshPanel(): void {
+    if (!this.tapName) return; // buildPanel 이전 (create 초기) 호출 방어
     const st = this.state;
     this.tapName.setText(`탭 공격력  Lv.${st.tapLevel}`);
     this.tapSub.setText(`탭당 ${fmt(st.tapDamage())}`);
@@ -508,15 +529,19 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: target, scale: 0.9, duration: 60, yoyo: true });
   }
 
-  /** 하단 토스트 메시지 */
+  /** 하단 토스트 메시지 — 단일 인스턴스 재사용 (연속 호출 시 겹침 방지) */
+  private toast: Phaser.GameObjects.Text | null = null;
   private showToast(msg: string): void {
+    this.toast?.destroy();
+    // depth 48: 스킬바 위, 모달 딤(50) 아래
     const t = this.add.text(GAME_WIDTH / 2, 640, msg, {
       fontFamily: FONT, fontSize: '22px', color: '#ffffff', fontStyle: 'bold',
       backgroundColor: '#241b3ecc', padding: { x: 18, y: 10 },
-    }).setOrigin(0.5).setDepth(60);
+    }).setOrigin(0.5).setDepth(48);
+    this.toast = t;
     this.tweens.add({
       targets: t, y: 610, alpha: 0, duration: 1400, ease: 'Quad.In', delay: 300,
-      onComplete: () => t.destroy(),
+      onComplete: () => { if (this.toast === t) this.toast = null; t.destroy(); },
     });
   }
 

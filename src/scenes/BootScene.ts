@@ -198,11 +198,11 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture('hpbar-fill', 330, 15);
     g.destroy();
 
-    // 보스 타이머 바
+    // 보스 타이머 바 (hpbar-fill 과 동일 330px — 배경 밖으로 삐져나오지 않게)
     g = this.add.graphics();
     g.fillStyle(0xf39c12, 1);
-    g.fillRoundedRect(0, 0, 340, 10, 5);
-    g.generateTexture('timer-fill', 340, 10);
+    g.fillRoundedRect(0, 0, 330, 10, 5);
+    g.generateTexture('timer-fill', 330, 10);
     g.destroy();
 
     // 영웅 아이콘 (원형)

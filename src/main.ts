@@ -48,11 +48,21 @@ function boot(): void {
   }
 
   // 자동 저장: 5초 주기 + 백그라운드 전환/종료 시
+  // (save() 내부에서 세이브 세대를 검사해, 다른 탭이 더 최신이면 쓰지 않는다)
   setInterval(() => state.save(), 5000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') state.save();
   });
   window.addEventListener('beforeunload', () => state.save());
+  // 다른 탭의 저장 감지 → 이 탭은 stale 로 전환 (진행 롤백 방지)
+  window.addEventListener('storage', (e) => {
+    if (e.key === GameState.SAVE_KEY) {
+      state.checkExternalWrite(e.newValue);
+      if (state.isStale()) {
+        console.warn('[taptap] 다른 탭에서 게임이 실행 중입니다. 이 탭은 더 이상 저장하지 않습니다.');
+      }
+    }
+  });
 
   // E2E 테스트/디버깅 훅
   window.__taptap = { game, state };

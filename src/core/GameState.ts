@@ -24,6 +24,7 @@ export type Mode = 'farm' | 'boss';
 
 interface SaveData {
   v: number;
+  gen: number; // 세이브 세대 카운터 — 멀티탭 last-writer-wins 방지
   gold: number;
   stage: number;
   kills: number;
@@ -41,6 +42,12 @@ interface SaveData {
 }
 
 const SAVE_KEY = 'taptap-titans-v1';
+
+/** 손상 세이브의 NaN/문자열 전파 방지: 유한수 아니면 fallback */
+function num(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
 
 type Listener = (...args: unknown[]) => void;
 
@@ -79,6 +86,22 @@ export class GameState extends Emitter {
   bossFailed = false;
   /** 마지막 세이브 시각 — 오프라인 보상 계산용 */
   lastSeen = Date.now();
+  /** 세이브 세대. 다른 탭이 더 새 세대를 쓰면 이 인스턴스는 stale 이 되어 저장을 멈춘다 */
+  private gen = 0;
+  private stale = false;
+
+  static readonly SAVE_KEY = SAVE_KEY;
+
+  isStale(): boolean { return this.stale; }
+
+  /** 다른 탭의 저장을 감지했을 때 호출 (storage 이벤트) */
+  checkExternalWrite(raw: string | null): void {
+    if (!raw) return;
+    try {
+      const g = (JSON.parse(raw) as SaveData).gen;
+      if (typeof g === 'number' && g > this.gen) this.stale = true;
+    } catch { /* ignore */ }
+  }
 
   // --- 파생 값 ------------------------------------------------------------
 
@@ -210,6 +233,20 @@ export class GameState extends Emitter {
     this.emit('gold', this.gold);
   }
 
+  /** 유물 지급 (환생 외 경로용 — 이벤트를 발행해 UI 를 갱신한다) */
+  addRelics(n: number): void {
+    this.relics += n;
+    this.emit('upgrade');
+  }
+
+  setPlayerName(name: string): boolean {
+    const t = name.trim();
+    if (t.length < 2 || t.length > 12) return false;
+    this.playerName = t;
+    this.save();
+    return true;
+  }
+
   // --- 업그레이드 ----------------------------------------------------------
 
   tryBuyTap(): boolean {
@@ -278,9 +315,20 @@ export class GameState extends Emitter {
   // --- 저장/로드 -----------------------------------------------------------
 
   save(): void {
+    if (this.stale) return; // 다른 탭이 더 최신 — 덮어쓰기 금지
+    // 저장 직전 외부 세대 재확인 (storage 이벤트를 놓친 경우 대비)
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) {
+        const g = (JSON.parse(raw) as SaveData).gen;
+        if (typeof g === 'number' && g > this.gen) { this.stale = true; return; }
+      }
+    } catch { /* ignore */ }
+    this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
       v: 2,
+      gen: this.gen,
       gold: this.gold,
       stage: this.stage,
       kills: this.kills,
@@ -308,23 +356,36 @@ export class GameState extends Emitter {
     if (!raw) return 0;
     try {
       const d = JSON.parse(raw) as SaveData;
-      this.gold = d.gold ?? 0;
-      this.stage = Math.max(1, d.stage ?? 1);
-      this.kills = d.kills ?? 0;
-      this.maxStage = Math.max(this.stage, d.maxStage ?? 1);
-      this.tapLevel = d.tapLevel ?? 0;
-      this.heroLevels = HEROES.map((h) => d.heroLevels?.[h.id] ?? 0);
-      this.relics = d.relics ?? 0;
+      const now = Date.now();
+      // 모든 수치는 num() 으로 정화 — 손상 세이브의 NaN/문자열이 전파되지 않게
+      this.gen = Math.max(0, Math.floor(num(d.gen, 0)));
+      this.gold = Math.max(0, num(d.gold, 0));
+      this.stage = Math.max(1, Math.floor(num(d.stage, 1)));
+      this.kills = Math.min(MONSTERS_PER_STAGE - 1, Math.max(0, Math.floor(num(d.kills, 0))));
+      this.maxStage = Math.max(this.stage, Math.floor(num(d.maxStage, 1)));
+      this.tapLevel = Math.max(0, Math.floor(num(d.tapLevel, 0)));
+      this.heroLevels = HEROES.map((h) => Math.max(0, Math.floor(num(d.heroLevels?.[h.id], 0))));
+      this.relics = Math.max(0, Math.floor(num(d.relics, 0)));
       // v1 → v2: 기존 소지 유물은 이미 "획득한" 것으로 간주해 이중 지급을 막는다
-      this.relicsEarned = d.relicsEarned ?? this.relics;
-      this.artifactLevels = ARTIFACTS.map((a) => d.artifactLevels?.[a.id] ?? 0);
-      this.skillReadyAt = SKILLS.map((s) => d.skillReadyAt?.[s.id] ?? 0);
-      this.skillActiveUntil = SKILLS.map((s) => d.skillActiveUntil?.[s.id] ?? 0);
-      this.playerName = d.playerName ?? '';
-      this.bossFailed = d.bossFailed ?? false;
+      this.relicsEarned = Math.max(this.relics, Math.floor(num(d.relicsEarned, this.relics)));
+      this.artifactLevels = ARTIFACTS.map((a) => {
+        const lvl = Math.max(0, Math.floor(num(d.artifactLevels?.[a.id], 0)));
+        return a.maxLevel > 0 ? Math.min(a.maxLevel, lvl) : lvl;
+      });
+      // 스킬 시계 클램프: 기기 시계 롤백이 쿨다운을 무기한 잠그거나
+      // 버프를 장시간 유지하지 못하게, 정상 상한(now + cooldown/duration)으로 자른다
+      this.skillReadyAt = SKILLS.map(
+        (s) => Math.min(Math.max(0, num(d.skillReadyAt?.[s.id], 0)), now + s.cooldown),
+      );
+      this.skillActiveUntil = SKILLS.map(
+        (s) => Math.min(Math.max(0, num(d.skillActiveUntil?.[s.id], 0)), now + s.duration),
+      );
+      this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
+      this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개
       this.mode = 'farm';
-      const away = (Date.now() - (d.lastSeen ?? Date.now())) / 1000;
+      // lastSeen 이 미래(시계 롤백)면 오프라인 보상 없음
+      const away = (now - Math.min(num(d.lastSeen, now), now)) / 1000;
       return away > 60 ? Math.min(away, OFFLINE_CAP_SEC) : 0;
     } catch {
       return 0;
