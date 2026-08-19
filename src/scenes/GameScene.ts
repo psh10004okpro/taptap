@@ -90,10 +90,12 @@ export class GameScene extends Phaser.Scene {
     // 환생 시 몬스터 리셋
     this.state.on('prestige', () => { this.spawnTimer?.remove(false); this.spawnTimer = null; this.spawn(); });
 
-    // 천상의 일격: 즉발 대미지 버스트
+    // 천상의 일격: 즉발 대미지 버스트 (스킬트리 강화 반영)
     this.state.on('skill', (...args: unknown[]) => {
       if (args[0] !== 4 || this.dead) return;
-      const dmg = this.state.tapDamage() * HEAVENLY_STRIKE_MULT;
+      const dmg = Math.round(
+        this.state.tapDamage() * HEAVENLY_STRIKE_MULT * this.state.skillPowerMult(),
+      );
       this.cameras.main.flash(180, 255, 240, 160);
       this.applyDamage(dmg, true, COMBAT_CENTER.x, COMBAT_CENTER.y - 180);
     });
@@ -187,7 +189,9 @@ export class GameScene extends Phaser.Scene {
       if (this.cloneTick >= Math.max(1, Math.round(10 / SHADOW_CLONE_TAPS_PER_SEC))) {
         this.cloneTick = 0;
         const crit = Math.random() < this.state.critChance();
-        const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
+        const dmg = Math.round(
+          this.state.tapDamage() * (crit ? this.state.critMult() : 1) * this.state.skillPowerMult(),
+        );
         this.applyDamage(
           dmg, crit,
           COMBAT_CENTER.x + Phaser.Math.Between(-70, 70),

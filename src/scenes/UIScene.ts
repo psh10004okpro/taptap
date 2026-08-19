@@ -9,7 +9,9 @@ import {
   EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE, HERO_PASSIVE_UNLOCK,
 } from '../config.ts';
 import type { EquipItem } from '../config.ts';
-import { ACHIEVEMENTS, PETS } from '../config.ts';
+import {
+  ACHIEVEMENTS, PETS, SKILL_TREE, TREE_BRANCH_NAMES, TREE_RESPEC_COST, treeNodeCost,
+} from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import * as Tournament from '../core/Tournament.ts';
@@ -76,6 +78,19 @@ export class UIScene extends Phaser.Scene {
 
   private relicText!: Phaser.GameObjects.Text;
   private artifactRows: ArtifactRow[] = [];
+  private artifactSubTab = 0; // 0=유물, 1=스킬트리
+  private artifactToggle: { img: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
+  private artifactListParts: Phaser.GameObjects.GameObject[] = [];
+  private treeParts: Phaser.GameObjects.GameObject[] = [];
+  private spText!: Phaser.GameObjects.Text;
+  private respecBtn!: Phaser.GameObjects.Image;
+  private respecText!: Phaser.GameObjects.Text;
+  private treeNodes: {
+    bg: Phaser.GameObjects.Image;
+    name: Phaser.GameObjects.Text;
+    lvl: Phaser.GameObjects.Text;
+    desc: Phaser.GameObjects.Text;
+  }[] = [];
 
   private rankNameText!: Phaser.GameObjects.Text;
   private rankStatus!: Phaser.GameObjects.Text;
@@ -127,6 +142,11 @@ export class UIScene extends Phaser.Scene {
     this.achRows = [];
     this.questToggle = [];
     this.petTexts = [];
+    this.artifactToggle = [];
+    this.artifactListParts = [];
+    this.treeParts = [];
+    this.treeNodes = [];
+    this.artifactSubTab = 0;
     this.rankToggle = [];
     this.questSubTab = 0;
     this.rankSubTab = 0;
@@ -552,18 +572,32 @@ export class UIScene extends Phaser.Scene {
   private buildArtifactTab(): Phaser.GameObjects.Container {
     const c = this.add.container(0, 0).setVisible(false);
 
-    this.relicText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 40, '', {
-      fontFamily: FONT, fontSize: '22px', color: '#d8b8ff', fontStyle: 'bold',
+    // 서브탭 [유물 | 스킬트리]
+    ['유물', '스킬트리'].forEach((label, i) => {
+      const x = GAME_WIDTH / 2 + (i === 0 ? -110 : 110);
+      const img = this.add.image(x, PANEL_Y + 40, i === 0 ? 'tab-on' : 'tab-off').setScale(1.4, 0.9);
+      const txt = this.add.text(x, PANEL_Y + 40, label, {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        this.artifactSubTab = i;
+        this.refreshPanel();
+      });
+      c.add([img, txt]);
+      this.artifactToggle.push({ img, txt });
+    });
+
+    this.relicText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 78, '', {
+      fontFamily: FONT, fontSize: '20px', color: '#d8b8ff', fontStyle: 'bold',
     }).setOrigin(0.5);
     c.add(this.relicText);
-    c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 68, '유물은 환생으로 얻고, 영구 강화에 사용합니다', {
-      fontFamily: FONT, fontSize: '15px', color: '#9a8bb8',
-    }).setOrigin(0.5));
 
     ARTIFACTS.forEach((a, i) => {
-      const y = PANEL_Y + 116 + i * 62;
-      c.add(this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.15));
-      c.add(this.add.image(42, y, 'artifact' + a.id));
+      const y = PANEL_Y + 118 + i * 62;
+      const rowBg = this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.15);
+      const icon = this.add.image(42, y, 'artifact' + a.id);
+      c.add([rowBg, icon]);
+      this.artifactListParts.push(rowBg, icon);
       const name = this.add.text(76, y - 13, '', {
         fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
@@ -579,6 +613,63 @@ export class UIScene extends Phaser.Scene {
       });
       c.add([name, desc, btn, btnText]);
       this.artifactRows.push({ name, desc, btn, btnText });
+      this.artifactListParts.push(name, desc, btn, btnText);
+    });
+
+    // --- 스킬트리 뷰 ---
+    this.spText = this.add.text(60, PANEL_Y + 112, '', {
+      fontFamily: FONT, fontSize: '19px', color: '#f9e79f', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.respecBtn = this.add.image(GAME_WIDTH - 96, PANEL_Y + 112, 'btn-buy');
+    this.respecText = this.add.text(GAME_WIDTH - 96, PANEL_Y + 112, `리셋 유물${TREE_RESPEC_COST}`, {
+      fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.respecBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      this.showPopup(
+        '스킬트리 초기화',
+        `유물 ${TREE_RESPEC_COST}개를 소비하고\n모든 노드를 초기화합니다.\n사용한 SP 는 전액 돌려받습니다.`,
+        [
+          { label: '초기화', on: () => { if (this.state.respecTree()) this.showToast('스킬트리가 초기화되었습니다'); } },
+          { label: '취소', on: () => { /* noop */ } },
+        ],
+      );
+    });
+    c.add([this.spText, this.respecBtn, this.respecText]);
+    this.treeParts.push(this.spText, this.respecBtn, this.respecText);
+
+    // 계열 라벨 + 노드 그리드 (3열 x 4행)
+    TREE_BRANCH_NAMES.forEach((bn, b) => {
+      const lbl = this.add.text(128 + b * 232, PANEL_Y + 148, bn, {
+        fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      c.add(lbl);
+      this.treeParts.push(lbl);
+    });
+    SKILL_TREE.forEach((n) => {
+      const x = 128 + n.branch * 232;
+      const y = PANEL_Y + 206 + n.tier * 92; // 마지막 행이 화면 안에 들어오는 간격
+      const bg = this.add.image(x, y, 'node').setScale(1, 0.92);
+      const name = this.add.text(x, y - 28, n.name, {
+        fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      const lvl = this.add.text(x, y - 6, '', {
+        fontFamily: FONT, fontSize: '14px', color: '#f9e79f',
+      }).setOrigin(0.5);
+      const desc = this.add.text(x, y + 20, `${n.desc}\nSP ${treeNodeCost(n)}`, {
+        fontFamily: FONT, fontSize: '12px', color: '#9a8bb8', align: 'center', lineSpacing: 2,
+      }).setOrigin(0.5);
+      bg.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        if (this.state.tryBuyNode(n.id)) {
+          this.pop(bg);
+        } else if (!this.state.isNodeUnlocked(n.id)) {
+          this.showToast(`선행 노드 레벨 ${n.requiresLevel} 필요`);
+        } else if (this.state.spAvailable() < treeNodeCost(n)) {
+          this.showToast('SP가 부족합니다 (스테이지 10마다 +1, 환생 +2)');
+        }
+      });
+      c.add([bg, name, lvl, desc]);
+      this.treeParts.push(bg, name, lvl, desc);
+      this.treeNodes.push({ bg, name, lvl, desc });
     });
     return c;
   }
@@ -888,13 +979,34 @@ export class UIScene extends Phaser.Scene {
     });
 
     this.relicText.setText(`보유 유물  ${fmt(st.relics)}개`);
+    // 유물/스킬트리 서브탭 전환
+    this.artifactToggle.forEach((t, i) => t.img.setTexture(i === this.artifactSubTab ? 'tab-on' : 'tab-off'));
+    const showArts = this.artifactSubTab === 0;
+    this.artifactListParts.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(showArts));
+    this.treeParts.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(!showArts));
     ARTIFACTS.forEach((a, i) => {
       const row = this.artifactRows[i];
+      if (!showArts) return;
       const lvl = st.artifactLevels[a.id];
       row.name.setText(`${a.name}  Lv.${lvl}${a.maxLevel > 0 ? `/${a.maxLevel}` : ''}`);
       row.desc.setText(`레벨당 ${a.desc}`);
       row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : `유물 ${fmt(st.artifactCost(a.id))}`);
     });
+    if (!showArts) {
+      this.spText.setText(`SP ${st.spAvailable()} / 누적 ${st.spEarned()}`);
+      this.setEnabled(this.respecBtn, st.spSpent() > 0 && st.relics >= TREE_RESPEC_COST);
+      SKILL_TREE.forEach((n, i) => {
+        const node = this.treeNodes[i];
+        const lvl = st.treeLevels[n.id];
+        const unlocked = st.isNodeUnlocked(n.id);
+        const canBuy = st.canBuyNode(n.id);
+        node.lvl.setText(`Lv.${lvl} / ${n.maxLevel}`);
+        node.bg.setAlpha(unlocked ? (canBuy ? 1 : 0.75) : 0.3);
+        node.name.setAlpha(unlocked ? 1 : 0.4);
+        node.lvl.setColor(lvl >= n.maxLevel ? '#7bed8d' : canBuy ? '#f9e79f' : '#9a8bb8');
+        node.desc.setAlpha(unlocked ? 1 : 0.4);
+      });
+    }
 
     // 장비 탭
     EQUIP_SLOTS.forEach((slot, i) => {
@@ -978,7 +1090,7 @@ export class UIScene extends Phaser.Scene {
     ARTIFACTS.forEach((a, i) => {
       this.setEnabled(
         this.artifactRows[i].btn,
-        !st.isArtifactMaxed(a.id) && st.relics >= st.artifactCost(a.id),
+        this.artifactSubTab === 0 && !st.isArtifactMaxed(a.id) && st.relics >= st.artifactCost(a.id),
       );
     });
   }

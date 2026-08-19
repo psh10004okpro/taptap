@@ -305,6 +305,15 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture('equip2', 44, 44);
     g.destroy();
 
+    // 스킬트리 노드 셀
+    g = this.add.graphics();
+    g.fillStyle(0xffffff, 0.08);
+    g.fillRoundedRect(0, 0, 208, 96, 12);
+    g.lineStyle(2, 0x8e44ad, 0.7);
+    g.strokeRoundedRect(1, 1, 206, 94, 12);
+    g.generateTexture('node', 208, 96);
+    g.destroy();
+
     // 오버레이 딤
     g = this.add.graphics();
     g.fillStyle(0x000000, 0.72);

@@ -10,7 +10,8 @@
 //  - 정체 + 의미 있는 유물 보상이면 환생, 유물은 ROI 순 소비
 // ---------------------------------------------------------------------------
 import {
-  HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
+  HEROES, SKILLS, ARTIFACTS, SKILL_TREE, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
+  treeNodeCost,
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT, SHADOW_CLONE_TAPS_PER_SEC,
   HEAVENLY_STRIKE_MULT, DEADLY_STRIKE_CRIT_BONUS,
   monsterHp, killGold, relicsFor,
@@ -94,6 +95,28 @@ function spendGold(s: GameState, p: SimProfile): void {
   }
 }
 
+/** SP 를 ΔDPS ROI 탐욕으로 소비, DPS 노드 소진 시 유틸 노드 순차 구매 */
+function spendSp(s: GameState, p: SimProfile): void {
+  for (let guard = 0; guard < 200; guard++) {
+    let bestGain = 0; let bestCost = Infinity; let bestId = -1;
+    const base = effDps(s, p);
+    for (const n of SKILL_TREE) {
+      if (!s.canBuyNode(n.id)) continue;
+      s.treeLevels[n.id]++;
+      const g = effDps(s, p) - base;
+      s.treeLevels[n.id]--;
+      if (g / treeNodeCost(n) > bestGain / bestCost) {
+        bestGain = g; bestCost = treeNodeCost(n); bestId = n.id;
+      }
+    }
+    if (bestId >= 0 && bestGain > 0) { s.tryBuyNode(bestId); continue; }
+    // DPS 에 안 잡히는 유틸 노드(골드/오프라인/쿨다운 등)는 순서대로
+    const util = SKILL_TREE.find((n) => s.canBuyNode(n.id));
+    if (!util) return;
+    s.tryBuyNode(util.id);
+  }
+}
+
 /** 유물을 ROI 순으로 소비 */
 function spendRelics(s: GameState, p: SimProfile, bossBlocked: boolean): void {
   for (let guard = 0; guard < 800; guard++) {
@@ -164,6 +187,7 @@ export function simulate(profile: SimProfile, simDays: number, stageCap = 500): 
       s.maxStage = Math.max(s.maxStage, s.stage);
       lastStageUpAt = t;
       spendGold(s, profile);
+      if (s.maxStage % 10 === 0) spendSp(s, profile); // SP 적립 시점마다 소비
       continue;
     }
 
@@ -185,7 +209,9 @@ export function simulate(profile: SimProfile, simDays: number, stageCap = 500): 
       s.stage = 1;
       s.tapLevel = 0;
       s.heroLevels = HEROES.map(() => 0);
+      s.lifetime.prestiges += 1; // SP 적립 (게임에선 doPrestige 가 수행)
       spendRelics(s, profile, true);
+      spendSp(s, profile);
       lastStageUpAt = t;
     } else if (t - lastStageUpAt > HARD_WALL_SEC * 4 && s.maxStage < PRESTIGE_MIN_STAGE) {
       walls.push({ stage: s.stage, dwellSec: t - lastStageUpAt, kind: 'hard', prestigeNo });

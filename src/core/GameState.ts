@@ -22,6 +22,8 @@ import {
   AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
   EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, EQUIP_SET_BONUS, DAILY_QUESTS,
   ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS, PETS, PET_EGG_DROP_CHANCE,
+  SKILL_TREE, SP_PER_STAGES, SP_PER_PRESTIGE, TREE_RESPEC_COST, SKILL_CD_CAP,
+  treeNodeCost,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
 import type { EquipItem, QuestMetric, EffectType, LifetimeMetric } from '../config.ts';
@@ -55,6 +57,7 @@ interface SaveData {
   lifetime: Record<string, number>;
   achClaimed: boolean[];
   petLevels: number[];
+  treeLevels: number[];
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
@@ -125,6 +128,8 @@ export class GameState extends Emitter {
   achClaimed: boolean[] = ACHIEVEMENTS.map(() => false);
   /** 펫 레벨 (0 = 미보유). 보스가 떨어뜨리는 알로 획득/성장 */
   petLevels: number[] = PETS.map(() => 0);
+  /** 스킬트리 노드 레벨 (환생 유지, 리스펙으로만 초기화) */
+  treeLevels: number[] = SKILL_TREE.map(() => 0);
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
@@ -168,7 +173,20 @@ export class GameState extends Emitter {
     for (const pt of PETS) {
       if (pt.bonus.type === type) sum += this.petLevels[pt.id] * pt.bonus.perLvl;
     }
+    for (const n of SKILL_TREE) {
+      if (n.effect.type === type) sum += this.treeLevels[n.id] * n.effect.perLvl;
+    }
     return sum;
+  }
+
+  /** 스킬 효과 강화 배율: 스킬의 "배율 - 1" 부분을 증폭한다 (x3 → x3+2*보너스) */
+  skillPowerMult(): number {
+    return 1 + this.bonus('skillPower');
+  }
+
+  /** 스킬 배율에 강화를 적용: base 배율 x -> 1 + (x-1)*강화 */
+  private amplifiedSkillMult(base: number): number {
+    return 1 + (base - 1) * this.skillPowerMult();
   }
 
   private equipMult(slot: number): number {
@@ -193,7 +211,7 @@ export class GameState extends Emitter {
       * (1 + this.bonus('tap'))
       * this.allDmgMult()
       * this.equipMult(0);
-    if (this.isSkillActive(0)) dmg *= SKILL_TAP_MULT;
+    if (this.isSkillActive(0)) dmg *= this.amplifiedSkillMult(SKILL_TAP_MULT);
     return Math.max(1, Math.round(dmg));
   }
 
@@ -201,19 +219,20 @@ export class GameState extends Emitter {
     let dps = 0;
     for (const h of HEROES) dps += heroDps(h, this.heroLevels[h.id]);
     dps *= (1 + this.bonus('dps')) * this.allDmgMult() * this.equipMult(1);
-    if (this.isSkillActive(1)) dps *= SKILL_DPS_MULT;
+    if (this.isSkillActive(1)) dps *= this.amplifiedSkillMult(SKILL_DPS_MULT);
     return dps;
   }
 
   goldMult(): number {
     let m = (1 + this.bonus('gold')) * this.equipMult(2);
-    if (this.isSkillActive(2)) m *= SKILL_GOLD_MULT;
+    if (this.isSkillActive(2)) m *= this.amplifiedSkillMult(SKILL_GOLD_MULT);
     if (this.isGoldBoostActive()) m *= AD_GOLD_BOOST_MULT;
     return m;
   }
 
   critChance(): number {
-    const skill = this.isSkillActive(5) ? DEADLY_STRIKE_CRIT_BONUS : 0;
+    const skill = this.isSkillActive(5)
+      ? DEADLY_STRIKE_CRIT_BONUS * this.skillPowerMult() : 0;
     return Math.min(0.75, Math.min(0.5, BASE_CRIT_CHANCE + this.bonus('critChance')) + skill);
   }
 
@@ -239,7 +258,7 @@ export class GameState extends Emitter {
   heroDps(id: number): number {
     return heroDps(HEROES[id], this.heroLevels[id])
       * (1 + this.bonus('dps')) * this.allDmgMult() * this.equipMult(1)
-      * (this.isSkillActive(1) ? SKILL_DPS_MULT : 1);
+      * (this.isSkillActive(1) ? this.amplifiedSkillMult(SKILL_DPS_MULT) : 1);
   }
 
   /** 영웅 패시브 해금 여부 */
@@ -279,8 +298,9 @@ export class GameState extends Emitter {
     const now = Date.now();
     const def = SKILLS[id];
     const dur = Math.round(def.duration * (1 + this.bonus('skillDur')));
+    const cdCut = Math.min(SKILL_CD_CAP, this.bonus('skillCd'));
     this.skillActiveUntil[id] = now + dur;
-    this.skillReadyAt[id] = now + def.cooldown;
+    this.skillReadyAt[id] = now + Math.round(def.cooldown * (1 - cdCut));
     this.bumpQuest('skillUses');
     Analytics.track('skill_use', { id, stage: this.stage });
     this.emit('skill', id);
@@ -314,6 +334,55 @@ export class GameState extends Emitter {
   /** 사람의 실제 탭 1회 기록 (업적 통계) */
   recordTap(): void {
     this.lifetime.taps += 1;
+  }
+
+  // --- 스킬트리 -------------------------------------------------------------
+
+  /** 누적 획득 SP: 최고 스테이지 10마다 1 + 환생당 2 */
+  spEarned(): number {
+    return Math.floor(this.maxStage / SP_PER_STAGES) + this.lifetime.prestiges * SP_PER_PRESTIGE;
+  }
+
+  spSpent(): number {
+    return SKILL_TREE.reduce((sum, n) => sum + this.treeLevels[n.id] * treeNodeCost(n), 0);
+  }
+
+  spAvailable(): number {
+    return Math.max(0, this.spEarned() - this.spSpent());
+  }
+
+  /** 선행 조건: 같은 계열 직전 티어 노드 레벨 */
+  isNodeUnlocked(id: number): boolean {
+    const n = SKILL_TREE[id];
+    if (n.tier === 0) return true;
+    const prev = SKILL_TREE.find((m) => m.branch === n.branch && m.tier === n.tier - 1);
+    return !!prev && this.treeLevels[prev.id] >= n.requiresLevel;
+  }
+
+  canBuyNode(id: number): boolean {
+    const n = SKILL_TREE[id];
+    return this.treeLevels[id] < n.maxLevel
+      && this.isNodeUnlocked(id)
+      && this.spAvailable() >= treeNodeCost(n);
+  }
+
+  tryBuyNode(id: number): boolean {
+    if (!this.canBuyNode(id)) return false;
+    this.treeLevels[id] += 1;
+    Analytics.track('tree_buy', { id, level: this.treeLevels[id] });
+    this.emit('upgrade');
+    return true;
+  }
+
+  /** 리스펙: 유물을 소비하고 모든 노드를 초기화 (SP 는 자동 반환됨) */
+  respecTree(): boolean {
+    if (this.spSpent() === 0) return false;
+    if (this.relics < TREE_RESPEC_COST) return false;
+    this.relics -= TREE_RESPEC_COST;
+    this.treeLevels = SKILL_TREE.map(() => 0);
+    Analytics.track('tree_respec', {});
+    this.emit('upgrade');
+    return true;
   }
 
   // --- 업적 ----------------------------------------------------------------
@@ -576,7 +645,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 5,
+      v: 6,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -595,6 +664,7 @@ export class GameState extends Emitter {
       lifetime: this.lifetime,
       achClaimed: this.achClaimed,
       petLevels: this.petLevels,
+      treeLevels: this.treeLevels,
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
@@ -674,6 +744,9 @@ export class GameState extends Emitter {
       };
       this.achClaimed = ACHIEVEMENTS.map((a) => d.achClaimed?.[a.id] === true);
       this.petLevels = PETS.map((pt) => Math.max(0, Math.floor(num(d.petLevels?.[pt.id], 0))));
+      this.treeLevels = SKILL_TREE.map((n) => Math.min(
+        n.maxLevel, Math.max(0, Math.floor(num(d.treeLevels?.[n.id], 0))),
+      ));
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개

@@ -25,7 +25,11 @@ declare global {
         daily: { date: string; counters: Record<string, number>; claimed: boolean[] };
         questProgress(id: number): number; canClaimQuest(id: number): boolean;
         claimQuest(id: number): boolean; ensureDaily(): void;
-        critChance(): number; petLevels: number[];
+        critChance(): number; petLevels: number[]; treeLevels: number[];
+        spEarned(): number; spSpent(): number; spAvailable(): number;
+        canBuyNode(id: number): boolean; tryBuyNode(id: number): boolean;
+        isNodeUnlocked(id: number): boolean; respecTree(): boolean;
+        skillPowerMult(): number;
         lifetime: Record<string, number>; achClaimed: boolean[];
         achProgress(id: number): number; canClaimAch(id: number): boolean;
         claimAch(id: number): boolean;
@@ -583,6 +587,79 @@ test('P3 클랜 보스: 공격권 소모·피해 적용·주간 상태가 동작
   expect(r.dmg).toBeGreaterThan(0);
   expect(r.hpAfter).toBeLessThan(r.hp0);
   expect(r.used).toBe(3);
+  expect(errors).toHaveLength(0);
+});
+
+test('스킬트리: SP 적립·선행 조건·노드 구매가 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.maxStage = 100;
+    s.lifetime.prestiges = 2;
+    const earned = s.spEarned();            // 10 + 4 = 14
+    const lockedT1 = s.canBuyNode(1);       // 선행(검술 연마 3) 미달
+    const ok1 = s.tryBuyNode(0);            // 검술 연마 1
+    s.tryBuyNode(0); s.tryBuyNode(0);       // 3레벨
+    const unlockedT1 = s.isNodeUnlocked(1);
+    const ok2 = s.tryBuyNode(1);            // 급소 간파 (SP 2)
+    return {
+      earned, lockedT1, ok1, unlockedT1, ok2,
+      spent: s.spSpent(),                   // 3*1 + 1*2 = 5
+      avail: s.spAvailable(),               // 14 - 5 = 9
+      lvl0: s.treeLevels[0], lvl1: s.treeLevels[1],
+    };
+  });
+  expect(r.earned).toBe(14);
+  expect(r.lockedT1).toBe(false);
+  expect(r.ok1).toBe(true);
+  expect(r.unlockedT1).toBe(true);
+  expect(r.ok2).toBe(true);
+  expect(r.spent).toBe(5);
+  expect(r.avail).toBe(9);
+  expect(r.lvl0).toBe(3);
+  expect(r.lvl1).toBe(1);
+  expect(errors).toHaveLength(0);
+});
+
+test('스킬트리: 스킬 강화·쿨다운 감소·리스펙이 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.maxStage = 400; // SP 40
+    s.addGold(1e9);
+    for (let i = 0; i < 30; i++) s.tryBuyTap();
+    // 기사 트리를 티어3(무신의 경지)까지
+    for (let i = 0; i < 3; i++) s.tryBuyNode(0);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(1);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(2);
+    s.tryBuyNode(3);                          // 스킬 효과 +10%
+    const power = s.skillPowerMult();         // 1.1
+    // 연금술사: 시간 촉매(쿨다운 -5%)까지
+    for (let i = 0; i < 3; i++) s.tryBuyNode(8);
+    for (let i = 0; i < 3; i++) s.tryBuyNode(9);
+    s.tryBuyNode(10);
+    // 화염검 발동 → 쿨다운이 기본(120s)보다 짧아야 함
+    s.tryActivateSkill(0);
+    const cd = s.skillCooldownLeft(0);
+    // 강화된 화염검: 순수 x3 을 초과해야 함 (x3 -> 1+2*1.1 = x3.2)
+    const dmgBoosted = s.tapDamage();
+    // 리스펙
+    s.addRelics(20);
+    const relics0 = s.relics;
+    const ok = s.respecTree();
+    return {
+      power, cd, ok,
+      relicsCost: relics0 - s.relics,
+      spentAfter: s.spSpent(),
+      dmgBoosted,
+    };
+  });
+  expect(r.power).toBeCloseTo(1.1, 5);
+  expect(r.cd).toBeLessThanOrEqual(115_000); // 120s - 5%
+  expect(r.cd).toBeGreaterThan(100_000);
+  expect(r.ok).toBe(true);
+  expect(r.relicsCost).toBe(10);
+  expect(r.spentAfter).toBe(0);
   expect(errors).toHaveLength(0);
 });
 

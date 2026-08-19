@@ -34,7 +34,9 @@ export type EffectType =
   | 'bossTime'   // 보스 제한시간 가산 (ms)
   | 'offline'    // 오프라인 보상 배율
   | 'skillDur'   // 스킬 지속시간 배율
-  | 'heroCost';  // 영웅 비용 할인 (fraction, 총합 50% 상한)
+  | 'heroCost'   // 영웅 비용 할인 (fraction, 총합 50% 상한)
+  | 'skillPower' // 스킬 효과 강화 (배율 효과의 증폭, fraction)
+  | 'skillCd';   // 스킬 쿨다운 감소 (fraction, 총합 40% 상한)
 
 export const HERO_COST_DISCOUNT_CAP = 0.5;
 
@@ -253,6 +255,54 @@ export const DAILY_QUESTS: QuestDef[] = [
   { id: 1, desc: '보스 5회 처치', metric: 'bossKills', target: 5, reward: 'gold', amount: 400 },
   { id: 2, desc: '스킬 3회 사용', metric: 'skillUses', target: 3, reward: 'relics', amount: 2 },
 ];
+
+// --- 스킬트리 (3계열 x 4티어 = 12노드, SP 소비) -------------------------------
+// SP 는 최고 스테이지 10마다 1 + 환생당 2 로 적립되며 환생해도 유지된다.
+// 전 노드 풀강에 필요한 SP(165)가 현실적 적립량을 넘도록 설계 → 빌드 선택 강제.
+
+export type TreeBranch = 0 | 1 | 2; // 0=기사(탭) 1=군주(방치) 2=연금술사(경제)
+
+export const TREE_BRANCH_NAMES = ['기사', '군주', '연금술사'] as const;
+
+export interface TreeNodeDef {
+  id: number;
+  branch: TreeBranch;
+  tier: number;          // 0..3 — 티어가 곧 레벨당 SP 비용
+  name: string;
+  desc: string;          // 레벨당 효과
+  maxLevel: number;
+  effect: { type: EffectType; perLvl: number };
+  /** 선행 조건: 같은 계열의 직전 노드 레벨 (티어0 은 없음) */
+  requiresLevel: number;
+}
+
+export const SKILL_TREE: TreeNodeDef[] = [
+  // 기사 — 탭/크리 빌드
+  { id: 0, branch: 0, tier: 0, name: '검술 연마', desc: '탭 데미지 +15%', maxLevel: 10, effect: { type: 'tap', perLvl: 0.15 }, requiresLevel: 0 },
+  { id: 1, branch: 0, tier: 1, name: '급소 간파', desc: '크리 확률 +1%p', maxLevel: 5, effect: { type: 'critChance', perLvl: 0.01 }, requiresLevel: 3 },
+  { id: 2, branch: 0, tier: 2, name: '파괴의 오의', desc: '크리 배율 +1', maxLevel: 5, effect: { type: 'critMult', perLvl: 1 }, requiresLevel: 3 },
+  { id: 3, branch: 0, tier: 3, name: '무신의 경지', desc: '스킬 효과 +10%', maxLevel: 5, effect: { type: 'skillPower', perLvl: 0.1 }, requiresLevel: 3 },
+  // 군주 — 영웅/방치 빌드
+  { id: 4, branch: 1, tier: 0, name: '군단 지휘', desc: '영웅 DPS +15%', maxLevel: 10, effect: { type: 'dps', perLvl: 0.15 }, requiresLevel: 0 },
+  { id: 5, branch: 1, tier: 1, name: '원정 보급', desc: '오프라인 보상 +10%', maxLevel: 5, effect: { type: 'offline', perLvl: 0.1 }, requiresLevel: 3 },
+  { id: 6, branch: 1, tier: 2, name: '정예 훈련', desc: '모든 데미지 +5%', maxLevel: 5, effect: { type: 'allDmg', perLvl: 0.05 }, requiresLevel: 3 },
+  { id: 7, branch: 1, tier: 3, name: '대군주의 위엄', desc: '보스 시간 +2초', maxLevel: 5, effect: { type: 'bossTime', perLvl: 2000 }, requiresLevel: 3 },
+  // 연금술사 — 골드/유틸 빌드
+  { id: 8, branch: 2, tier: 0, name: '황금 변환', desc: '골드 획득 +12%', maxLevel: 10, effect: { type: 'gold', perLvl: 0.12 }, requiresLevel: 0 },
+  { id: 9, branch: 2, tier: 1, name: '계약 협상', desc: '영웅 비용 -3%', maxLevel: 5, effect: { type: 'heroCost', perLvl: 0.03 }, requiresLevel: 3 },
+  { id: 10, branch: 2, tier: 2, name: '시간 촉매', desc: '스킬 쿨다운 -5%', maxLevel: 5, effect: { type: 'skillCd', perLvl: 0.05 }, requiresLevel: 3 },
+  { id: 11, branch: 2, tier: 3, name: '현자의 돌', desc: '스킬 지속 +10%', maxLevel: 5, effect: { type: 'skillDur', perLvl: 0.1 }, requiresLevel: 3 },
+];
+
+/** 노드 레벨당 SP 비용 = 티어 + 1 */
+export function treeNodeCost(node: TreeNodeDef): number {
+  return node.tier + 1;
+}
+
+export const SP_PER_STAGES = 10;      // 최고 스테이지 10마다 SP 1
+export const SP_PER_PRESTIGE = 2;     // 환생당 SP 2
+export const TREE_RESPEC_COST = 10;   // 리스펙 비용 (유물)
+export const SKILL_CD_CAP = 0.4;      // 쿨다운 감소 상한
 
 // --- 펫 (보스가 떨어뜨리는 알로 획득/성장, 영구 보너스) -----------------------
 
