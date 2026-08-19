@@ -254,6 +254,28 @@ export const DAILY_QUESTS: QuestDef[] = [
   { id: 2, desc: '스킬 3회 사용', metric: 'skillUses', target: 3, reward: 'relics', amount: 2 },
 ];
 
+// --- 펫 (보스가 떨어뜨리는 알로 획득/성장, 영구 보너스) -----------------------
+
+export interface PetDef {
+  id: number;
+  name: string;
+  glyph: string;
+  color: number;
+  bonus: { type: EffectType; perLvl: number };
+  desc: string; // 레벨당 효과
+}
+
+export const PETS: PetDef[] = [
+  { id: 0, name: '불도마뱀', glyph: '불', color: 0xe74c3c, bonus: { type: 'tap', perLvl: 0.05 }, desc: '탭 데미지 +5%' },
+  { id: 1, name: '바람매', glyph: '매', color: 0x5dade2, bonus: { type: 'dps', perLvl: 0.05 }, desc: '영웅 DPS +5%' },
+  { id: 2, name: '금두더지', glyph: '금', color: 0xf1c40f, bonus: { type: 'gold', perLvl: 0.04 }, desc: '골드 획득 +4%' },
+  { id: 3, name: '그림자삵', glyph: '삵', color: 0x8e44ad, bonus: { type: 'critChance', perLvl: 0.002 }, desc: '크리 확률 +0.2%p' },
+  { id: 4, name: '이끼거북', glyph: '龜', color: 0x27ae60, bonus: { type: 'offline', perLvl: 0.04 }, desc: '오프라인 보상 +4%' },
+  { id: 5, name: '꼬마정령', glyph: '정', color: 0xec7063, bonus: { type: 'allDmg', perLvl: 0.02 }, desc: '모든 데미지 +2%' },
+];
+
+export const PET_EGG_DROP_CHANCE = 0.06; // 보스 처치당
+
 // --- 업적 (평생 통계 기반, 보상: 유물) ---------------------------------------
 
 export type LifetimeMetric = 'taps' | 'kills' | 'bossKills' | 'prestiges' | 'equipDrops' | 'maxStage';

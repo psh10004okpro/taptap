@@ -25,7 +25,7 @@ declare global {
         daily: { date: string; counters: Record<string, number>; claimed: boolean[] };
         questProgress(id: number): number; canClaimQuest(id: number): boolean;
         claimQuest(id: number): boolean; ensureDaily(): void;
-        critChance(): number;
+        critChance(): number; petLevels: number[];
         lifetime: Record<string, number>; achClaimed: boolean[];
         achProgress(id: number): number; canClaimAch(id: number): boolean;
         claimAch(id: number): boolean;
@@ -33,6 +33,12 @@ declare global {
       tourney: {
         status(now?: Date): { kind: string; opensInMs?: number; closesInMs?: number };
         isEntered(): boolean;
+      };
+      season: { seasonKey(now?: Date): string; seasonEndsInMs(now?: Date): number };
+      clanBoss: {
+        current(s: unknown): { hpMax: number; hpLeft: number; attacksUsed: number; killed: boolean };
+        attacksLeft(s: unknown): number;
+        attack(s: unknown): { damage: number; killed: boolean; hpLeft: number } | null;
       };
     };
   }
@@ -510,6 +516,73 @@ test('P2 토너먼트: 주말 창 계산과 참가 상태가 올바르다', asyn
   expect(r.sun).toBe('open');
   expect(r.mon).toBe('closed');
   expect(r.entered).toBe(false);
+  expect(errors).toHaveLength(0);
+});
+
+test('P3 시즌: 시즌 키 계산과 시즌 전환 보상이 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const keys = await page.evaluate(() => ({
+    s1: window.__taptap!.season.seasonKey(new Date('2026-01-10T00:00:00Z')),
+    s2: window.__taptap!.season.seasonKey(new Date('2026-02-05T00:00:00Z')),
+    now: window.__taptap!.season.seasonKey(),
+    endsMs: window.__taptap!.season.seasonEndsInMs(),
+  }));
+  expect(keys.s1).toBe('S1');
+  expect(keys.s2).toBe('S2');
+  expect(keys.endsMs).toBeGreaterThan(0);
+
+  // 지난 시즌 스냅샷 주입 → 리로드 시 보상 지급
+  await page.evaluate(() => {
+    localStorage.setItem('taptap-season', JSON.stringify({ key: 'S1', stage: 60 }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  const relics = await page.evaluate(() => window.__taptap!.state.relics);
+  expect(relics).toBeGreaterThanOrEqual(3); // 60/20 = 3
+  expect(errors).toHaveLength(0);
+});
+
+test('P3 펫: 펫 레벨이 효과 집계에 반영된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1e6);
+    for (let i = 0; i < 20; i++) s.tryBuyTap();
+    const dmg0 = s.tapDamage();
+    s.petLevels[0] = 10; // 불도마뱀: 탭 +5%/lvl → +50%
+    const dmg1 = s.tapDamage();
+    return { dmg0, dmg1 };
+  });
+  expect(r.dmg1).toBeGreaterThan(r.dmg0 * 1.4);
+  expect(errors).toHaveLength(0);
+});
+
+test('P3 클랜 보스: 공격권 소모·피해 적용·주간 상태가 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const cb = window.__taptap!.clanBoss;
+    s.addGold(1e6);
+    for (let i = 0; i < 10; i++) s.tryBuyHero(0); // DPS 확보
+    const b0 = cb.current(s);
+    const a1 = cb.attack(s);
+    const a2 = cb.attack(s);
+    const a3 = cb.attack(s);
+    const a4 = cb.attack(s); // 4회째 → null (주 3회)
+    const b1 = cb.current(s);
+    return {
+      hp0: b0.hpLeft, a1: !!a1, a2: !!a2, a3: !!a3, a4,
+      dmg: a1?.damage ?? 0,
+      hpAfter: b1.hpLeft, used: b1.attacksUsed,
+    };
+  });
+  expect(r.a1).toBe(true);
+  expect(r.a2).toBe(true);
+  expect(r.a3).toBe(true);
+  expect(r.a4).toBeNull();
+  expect(r.dmg).toBeGreaterThan(0);
+  expect(r.hpAfter).toBeLessThan(r.hp0);
+  expect(r.used).toBe(3);
   expect(errors).toHaveLength(0);
 });
 

@@ -3,13 +3,18 @@ import { GAME_WIDTH, GAME_HEIGHT } from './config.ts';
 import { GameState } from './core/GameState.ts';
 import { Analytics } from './core/Analytics.ts';
 import * as Tournament from './core/Tournament.ts';
+import * as Season from './core/Season.ts';
+import * as ClanBoss from './core/ClanBoss.ts';
 import { BootScene } from './scenes/BootScene.ts';
 import { GameScene } from './scenes/GameScene.ts';
 import { UIScene } from './scenes/UIScene.ts';
 
 declare global {
   interface Window {
-    __taptap?: { game: Phaser.Game; state: GameState; tourney: typeof Tournament };
+    __taptap?: {
+      game: Phaser.Game; state: GameState;
+      tourney: typeof Tournament; season: typeof Season; clanBoss: typeof ClanBoss;
+    };
   }
 }
 
@@ -22,6 +27,9 @@ function boot(): void {
   // 토너먼트: 만료 자동 정산(리로드됨) / 미지급 보상 수령
   const tourneyReward = Tournament.bootCheck(state);
   if (tourneyReward) state.addRelics(tourneyReward.relics);
+  // 시즌: 시즌 전환 시 지난 시즌 보상 지급
+  const seasonReward = Season.rollover(state.maxStage);
+  if (seasonReward) state.addRelics(seasonReward.relics);
   Analytics.debug = import.meta.env.DEV; // 개발 모드에서만 콘솔 출력
   Analytics.track('session_start', {
     resumed: GameState.hasSave(),
@@ -61,12 +69,14 @@ function boot(): void {
     }
   }
   if (tourneyReward) game.registry.set('tourneyReward', tourneyReward);
+  if (seasonReward) game.registry.set('seasonReward', seasonReward);
   game.registry.set('tournamentMode', Tournament.isEntered());
 
   // 자동 저장: 5초 주기 + 백그라운드 전환/종료 시
   // (save() 내부에서 세이브 세대를 검사해, 다른 탭이 더 최신이면 쓰지 않는다)
   setInterval(() => state.save(), 5000);
   setInterval(() => state.ensureDaily(), 60_000); // 자정 넘김 감지
+  setInterval(() => Season.snapshot(state.maxStage), 30_000); // 시즌 기록 스냅샷
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') state.save();
   });
@@ -82,7 +92,7 @@ function boot(): void {
   });
 
   // E2E 테스트/디버깅 훅
-  window.__taptap = { game, state, tourney: Tournament };
+  window.__taptap = { game, state, tourney: Tournament, season: Season, clanBoss: ClanBoss };
 }
 
 boot();

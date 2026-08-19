@@ -9,10 +9,12 @@ import {
   EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE, HERO_PASSIVE_UNLOCK,
 } from '../config.ts';
 import type { EquipItem } from '../config.ts';
-import { ACHIEVEMENTS } from '../config.ts';
+import { ACHIEVEMENTS, PETS } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import * as Tournament from '../core/Tournament.ts';
+import * as Season from '../core/Season.ts';
+import * as ClanBoss from '../core/ClanBoss.ts';
 import { Leaderboard, LbEntry } from '../core/Leaderboard.ts';
 import { fmt, fmtDuration } from '../core/format.ts';
 
@@ -100,6 +102,15 @@ export class UIScene extends Phaser.Scene {
   private tourneyText!: Phaser.GameObjects.Text;
   private tourneyBtn!: Phaser.GameObjects.Image;
   private tourneyBtnText!: Phaser.GameObjects.Text;
+  private petTexts: Phaser.GameObjects.Text[] = [];
+  private rankSubTab = 0; // 0=개인, 1=클랜
+  private rankToggle: { img: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
+  private personalView!: Phaser.GameObjects.Container;
+  private clanView!: Phaser.GameObjects.Container;
+  private clanHpFill!: Phaser.GameObjects.Image;
+  private clanInfo!: Phaser.GameObjects.Text;
+  private clanAtkBtn!: Phaser.GameObjects.Image;
+  private clanAtkText!: Phaser.GameObjects.Text;
 
   constructor() { super('UI'); }
 
@@ -115,7 +126,10 @@ export class UIScene extends Phaser.Scene {
     this.questRows = [];
     this.achRows = [];
     this.questToggle = [];
+    this.petTexts = [];
+    this.rankToggle = [];
     this.questSubTab = 0;
+    this.rankSubTab = 0;
     this.heroPage = 0;
     this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
@@ -135,6 +149,16 @@ export class UIScene extends Phaser.Scene {
     // 오프라인 보상 팝업 (main.ts 에서 지급 후 registry 에 기록)
     const off = this.registry.get('offlineReward') as { sec: number; gold: number } | undefined;
     if (off && off.gold > 0) this.showOfflinePopup(off.sec, off.gold);
+
+    // 시즌 전환 보상 팝업
+    const sr = this.registry.get('seasonReward') as { season: string; stage: number; relics: number } | undefined;
+    if (sr) {
+      this.showPopup(
+        '시즌 종료!',
+        `${sr.season} 시즌 기록: 스테이지 ${sr.stage}\n시즌 보상: 유물 +${sr.relics}\n새 시즌 랭킹이 시작되었습니다.`,
+        [{ label: '받기', on: () => { /* 이미 지급됨 */ } }],
+      );
+    }
 
     // 토너먼트 정산 보상 팝업
     const tr = this.registry.get('tourneyReward') as { stage: number; relics: number } | undefined;
@@ -351,6 +375,29 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
       c.add([title, sub]);
       this.equipRows.push({ title, sub });
+    });
+
+    // 펫 섹션 (보스 알 드롭으로 성장)
+    c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 402, '펫 — 보스가 6% 확률로 알을 떨어뜨립니다', {
+      fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
+    }).setOrigin(0.5));
+    PETS.forEach((pt, i) => {
+      const x = 85 + i * 110;
+      const y = PANEL_Y + 452;
+      const g = this.add.graphics({ x, y });
+      const dark = Phaser.Display.Color.ValueToColor(pt.color).darken(30).color;
+      g.fillStyle(dark, 1).fillCircle(0, 0, 26);
+      g.fillStyle(pt.color, 1).fillCircle(0, -1, 22);
+      c.add(g);
+      c.add(this.add.text(x, y - 2, pt.glyph, {
+        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
+        stroke: '#22182f', strokeThickness: 3,
+      }).setOrigin(0.5));
+      const lvl = this.add.text(x, y + 40, '', {
+        fontFamily: FONT, fontSize: '14px', color: '#c9b8e8',
+      }).setOrigin(0.5);
+      c.add(lvl);
+      this.petTexts.push(lvl);
     });
     return c;
   }
@@ -590,19 +637,82 @@ export class UIScene extends Phaser.Scene {
     });
     c.add([this.tourneyText, this.tourneyBtn, this.tourneyBtnText]);
 
-    this.rankStatus = this.add.text(GAME_WIDTH / 2, PANEL_Y + 128, '', {
+    // [개인|클랜] 토글
+    ['개인 랭킹', '클랜'].forEach((label, i) => {
+      const x = GAME_WIDTH / 2 + (i === 0 ? -110 : 110);
+      const img = this.add.image(x, PANEL_Y + 134, i === 0 ? 'tab-on' : 'tab-off').setScale(1.4, 0.82);
+      const txt = this.add.text(x, PANEL_Y + 134, label, {
+        fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        this.rankSubTab = i;
+        this.refreshPanel();
+        if (i === 0) this.loadRanking();
+      });
+      c.add([img, txt]);
+      this.rankToggle.push({ img, txt });
+    });
+
+    // 개인 뷰: 시즌/상태 + 리스트
+    this.personalView = this.add.container(0, 0);
+    this.rankStatus = this.add.text(GAME_WIDTH / 2, PANEL_Y + 168, '', {
       fontFamily: FONT, fontSize: '15px', color: '#9a8bb8',
     }).setOrigin(0.5);
-    c.add(this.rankStatus);
-
-    for (let i = 0; i < 9; i++) {
-      const line = this.add.text(50, PANEL_Y + 158 + i * 41, '', {
+    this.personalView.add(this.rankStatus);
+    for (let i = 0; i < 8; i++) {
+      const line = this.add.text(50, PANEL_Y + 198 + i * 41, '', {
         fontFamily: FONT, fontSize: '19px', color: '#ffffff',
       }).setOrigin(0, 0.5);
-      c.add(line);
+      this.personalView.add(line);
       this.rankLines.push(line);
     }
+    c.add(this.personalView);
+
+    // 클랜 뷰: 주간 클랜 보스 (로컬 우선)
+    this.clanView = this.add.container(0, 0).setVisible(false);
+    this.clanView.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 172, '주간 클랜 보스', {
+      fontFamily: FONT, fontSize: '22px', color: '#ff9c9c', fontStyle: 'bold',
+    }).setOrigin(0.5));
+    this.clanView.add(this.add.image(GAME_WIDTH / 2, PANEL_Y + 210, 'hpbar-bg'));
+    this.clanHpFill = this.add.image(GAME_WIDTH / 2 - 165, PANEL_Y + 210, 'hpbar-fill').setOrigin(0, 0.5);
+    this.clanView.add(this.clanHpFill);
+    this.clanInfo = this.add.text(GAME_WIDTH / 2, PANEL_Y + 250, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', align: 'center', lineSpacing: 6,
+    }).setOrigin(0.5);
+    this.clanView.add(this.clanInfo);
+    this.clanAtkBtn = this.add.image(GAME_WIDTH / 2, PANEL_Y + 330, 'btn-boss');
+    this.clanAtkText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 330, '공격! (30초 전투)', {
+      fontFamily: FONT, fontSize: '21px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.clanAtkBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      const r = ClanBoss.attack(this.state);
+      if (!r) return;
+      this.showToast(r.killed
+        ? `클랜 보스 처치! 유물 +${ClanBoss.CLAN_BOSS_REWARD_RELICS}`
+        : `피해 ${fmt(r.damage)}!`);
+      this.refreshPanel();
+    });
+    this.clanView.add([this.clanAtkBtn, this.clanAtkText]);
+    this.clanView.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 400,
+      '처치 보상: 유물 15개 · 공격권은 매주 월요일 3회 충전\n온라인 클랜(합산 랭킹·공동 보스)은 Supabase 연동 시 활성화', {
+        fontFamily: FONT, fontSize: '14px', color: '#9a8bb8', align: 'center', lineSpacing: 6,
+      }).setOrigin(0.5));
+    c.add(this.clanView);
     return c;
+  }
+
+  private refreshClanView(): void {
+    const b = ClanBoss.current(this.state);
+    const ratio = b.hpMax > 0 ? b.hpLeft / b.hpMax : 0;
+    this.clanHpFill.setScale(Math.max(0.001, ratio), 1);
+    const left = ClanBoss.attacksLeft(this.state);
+    this.clanInfo.setText(b.killed
+      ? '이번 주 보스를 처치했습니다!\n다음 보스는 월요일에 나타납니다.'
+      : `HP ${fmt(b.hpLeft)} / ${fmt(b.hpMax)}\n남은 공격권 ${left} / ${ClanBoss.CLAN_BOSS_ATTACKS_PER_WEEK}`);
+    const can = !b.killed && left > 0;
+    this.clanAtkBtn.setAlpha(can ? 1 : 0.4);
+    if (can) this.clanAtkBtn.setInteractive({ useHandCursor: true });
+    else this.clanAtkBtn.disableInteractive();
   }
 
   private refreshTourneyCard(): void {
@@ -656,10 +766,12 @@ export class UIScene extends Phaser.Scene {
 
   private async loadRanking(): Promise<void> {
     this.refreshRankHeader();
+    const dLeft = Math.max(1, Math.ceil(Season.seasonEndsInMs() / 86_400_000));
+    const seasonTag = `시즌 ${Season.seasonKey()} · 종료 D-${dLeft}`;
     this.rankStatus.setText(this.lb.mode === 'local'
-      ? '오프라인 모드 — Supabase 미설정 시 로컬 기록만 표시됩니다'
-      : '불러오는 중...');
-    const entries = await this.lb.top(9);
+      ? `${seasonTag} · 오프라인 모드`
+      : `${seasonTag} · 불러오는 중...`);
+    const entries = await this.lb.top(8);
     if (entries === null) {
       this.rankStatus.setText('서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
       this.renderRanking([]);
@@ -690,6 +802,10 @@ export class UIScene extends Phaser.Scene {
     this.state.on('mode', () => this.refreshStage());
     this.state.on('prestige', () => this.refreshAll());
     this.state.on('quest', () => this.refreshPanel());
+    this.state.on('pet', (...args: unknown[]) => {
+      const pt = PETS[args[0] as number];
+      this.showToast(`펫 알 획득! ${pt.name} Lv.${args[1]} (${pt.desc})`);
+    });
     this.state.on('drop', (...args: unknown[]) => {
       const item = args[0] as EquipItem;
       const equipped = args[1] as boolean;
@@ -826,6 +942,15 @@ export class UIScene extends Phaser.Scene {
       this.setEnabled(row.btn, !showDaily && st.canClaimAch(a.id));
     });
     this.refreshTourneyCard();
+    PETS.forEach((pt, i) => {
+      const lvl = st.petLevels[pt.id];
+      this.petTexts[i].setText(lvl > 0 ? `${pt.name} Lv.${lvl}` : `${pt.name} —`)
+        .setColor(lvl > 0 ? '#ffffff' : '#6f6488');
+    });
+    this.rankToggle.forEach((t, i) => t.img.setTexture(i === this.rankSubTab ? 'tab-on' : 'tab-off'));
+    this.personalView?.setVisible(this.rankSubTab === 0);
+    this.clanView?.setVisible(this.rankSubTab === 1);
+    if (this.rankSubTab === 1) this.refreshClanView();
 
     // 광고 버튼 상태
     if (st.isGoldBoostActive()) {

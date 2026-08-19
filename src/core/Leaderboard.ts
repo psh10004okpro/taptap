@@ -5,7 +5,7 @@
 // - 미설정이면 로컬 모드: localStorage 에 저장, 데모 봇 몇 명과 함께 표시.
 // 점수(최고 스테이지)는 클라이언트를 신뢰하지 않는다 — 서버 검증 규칙은
 // supabase/functions/submit-score 참고.
-// ---------------------------------------------------------------------------
+import { seasonKey } from './Season.ts';
 
 export interface LbEntry {
   name: string;
@@ -35,8 +35,10 @@ interface SupabaseLike {
   };
   from(table: string): {
     select(cols: string): {
-      order(col: string, opts: { ascending: boolean }): {
-        limit(n: number): Promise<{ data: unknown; error: unknown }>;
+      eq(col: string, val: string): {
+        order(col: string, opts: { ascending: boolean }): {
+          limit(n: number): Promise<{ data: unknown; error: unknown }>;
+        };
       };
     };
   };
@@ -103,6 +105,7 @@ export class Leaderboard {
       const { data, error } = await this.client
         .from('leaderboard')
         .select('name, max_stage, relics')
+        .eq('season', seasonKey())
         .order('max_stage', { ascending: false })
         .limit(n);
       if (error || !Array.isArray(data)) return null;

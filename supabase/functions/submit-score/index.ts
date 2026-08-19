@@ -11,6 +11,14 @@
 //   6. 유물 수치는 스테이지 곡선(relicsFor)의 이론 상한을 넘을 수 없음
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// src/core/Season.ts 와 동일한 시즌 키 공식 (양쪽 동기화 유지)
+const SEASON_EPOCH_UTC = Date.UTC(2026, 0, 5);
+const SEASON_LEN_MS = 28 * 86_400_000;
+function seasonKey(): string {
+  const n = Math.max(0, Math.floor((Date.now() - SEASON_EPOCH_UTC) / SEASON_LEN_MS));
+  return `S${n + 1}`;
+}
+
 // src/config.ts 의 relicsFor 와 동일한 곡선 (양쪽 동기화 유지)
 function relicsFor(maxStage: number): number {
   if (maxStage < 25) return 0;
@@ -90,6 +98,7 @@ Deno.serve(async (req) => {
       name,
       max_stage: stage,
       relics,
+      season: seasonKey(),
       updated_at: new Date().toISOString(),
     });
     if (upsertErr) return fail(500, "db error");

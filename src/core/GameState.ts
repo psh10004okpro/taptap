@@ -9,6 +9,7 @@
 //   'upgrade'                                    탭/영웅/유물/장비/부스트 변경
 //   'skill'         (id: number)                 스킬 발동
 //   'drop'          (item: EquipItem, equipped)  장비 드롭
+//   'pet'           (petId: number, level)       펫 알 획득
 //   'quest'                                      퀘스트 진행/수령 변경
 //   'prestige'      (relics: number)             환생 완료
 // ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@ import {
   HERO_PASSIVE_UNLOCK, HERO_COST_DISCOUNT_CAP,
   AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
   EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, EQUIP_SET_BONUS, DAILY_QUESTS,
-  ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS,
+  ACHIEVEMENTS, DEADLY_STRIKE_CRIT_BONUS, PETS, PET_EGG_DROP_CHANCE,
   tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config.ts';
 import type { EquipItem, QuestMetric, EffectType, LifetimeMetric } from '../config.ts';
@@ -53,6 +54,7 @@ interface SaveData {
   daily: DailyState;
   lifetime: Record<string, number>;
   achClaimed: boolean[];
+  petLevels: number[];
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
@@ -121,6 +123,8 @@ export class GameState extends Emitter {
     taps: 0, kills: 0, bossKills: 0, prestiges: 0, equipDrops: 0,
   };
   achClaimed: boolean[] = ACHIEVEMENTS.map(() => false);
+  /** 펫 레벨 (0 = 미보유). 보스가 떨어뜨리는 알로 획득/성장 */
+  petLevels: number[] = PETS.map(() => 0);
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
@@ -160,6 +164,9 @@ export class GameState extends Emitter {
       if (h.passive.type === type && this.heroLevels[h.id] >= HERO_PASSIVE_UNLOCK) {
         sum += h.passive.value;
       }
+    }
+    for (const pt of PETS) {
+      if (pt.bonus.type === type) sum += this.petLevels[pt.id] * pt.bonus.perLvl;
     }
     return sum;
   }
@@ -345,6 +352,7 @@ export class GameState extends Emitter {
         dwellMs: Date.now() - this.stageEnteredAt,
       });
       this.rollEquipDrop();
+      this.rollPetEgg();
       this.stage += 1;
       this.maxStage = Math.max(this.maxStage, this.stage);
       this.kills = 0;
@@ -427,6 +435,16 @@ export class GameState extends Emitter {
     Analytics.track('equip_drop', { slot, rarity, statPct: item.statPct, stage: this.stage, equipped });
     this.emit('drop', item, equipped);
     if (equipped) this.emit('upgrade');
+  }
+
+  /** 보스 처치 시 펫 알 드롭 → 랜덤 펫 +1 레벨 */
+  private rollPetEgg(): void {
+    if (Math.random() >= PET_EGG_DROP_CHANCE) return;
+    const id = Math.floor(Math.random() * PETS.length);
+    this.petLevels[id] += 1;
+    Analytics.track('pet_drop', { id, level: this.petLevels[id], stage: this.stage });
+    this.emit('pet', id, this.petLevels[id]);
+    this.emit('upgrade');
   }
 
   // --- 일일 퀘스트 ----------------------------------------------------------
@@ -558,7 +576,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 4,
+      v: 5,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -576,6 +594,7 @@ export class GameState extends Emitter {
       daily: this.daily,
       lifetime: this.lifetime,
       achClaimed: this.achClaimed,
+      petLevels: this.petLevels,
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
@@ -654,6 +673,7 @@ export class GameState extends Emitter {
         equipDrops: Math.max(0, Math.floor(num(d.lifetime?.equipDrops, 0))),
       };
       this.achClaimed = ACHIEVEMENTS.map((a) => d.achClaimed?.[a.id] === true);
+      this.petLevels = PETS.map((pt) => Math.max(0, Math.floor(num(d.petLevels?.[pt.id], 0))));
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개

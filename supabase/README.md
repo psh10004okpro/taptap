@@ -25,6 +25,12 @@ VITE_SUPABASE_URL=https://<PROJECT_REF>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon key>
 ```
 
+## 시즌 / 클랜 (0002 마이그레이션)
+- `leaderboard.season`: submit-score 가 서버에서 계산(4주 키, `src/core/Season.ts` 와 동일 공식). 랭킹 조회는 시즌 필터.
+- 클랜: `clans`/`clan_members` + `clan_rankings` 뷰(멤버 최고 스테이지 합산). 쓰기는 `clan-ops` 함수만.
+- 배포: `supabase db push && supabase functions deploy submit-score clan-ops`
+- 미연동 확장(TODO): 토너먼트 온라인 순위, 클랜 공동 보스 HP 서버 관리, 시즌 보상 서버 정산.
+
 ## 보안 모델
 - `leaderboard` 테이블은 **select 만 공개**. insert/update RLS 정책이 없어 클라이언트 직접 쓰기는 전부 거부된다.
 - 쓰기는 `submit-score` Edge Function(service_role) 하나뿐이며 다음을 강제한다:
