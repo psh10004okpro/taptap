@@ -259,16 +259,50 @@ export class BootScene extends Phaser.Scene {
       gg.destroy();
     });
 
-    // 패널 탭 (활성/비활성)
+    // 패널 탭 (활성/비활성) — 5탭 x 132px
     g = this.add.graphics();
     g.fillStyle(0x8e44ad, 1);
-    g.fillRoundedRect(0, 0, 150, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
-    g.generateTexture('tab-on', 150, 44);
+    g.fillRoundedRect(0, 0, 132, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.generateTexture('tab-on', 132, 44);
     g.destroy();
     g = this.add.graphics();
     g.fillStyle(0xffffff, 0.08);
-    g.fillRoundedRect(0, 0, 150, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
-    g.generateTexture('tab-off', 150, 44);
+    g.fillRoundedRect(0, 0, 132, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.generateTexture('tab-off', 132, 44);
+    g.destroy();
+
+    // 광고 보상 버튼 (오렌지)
+    g = this.add.graphics();
+    g.fillStyle(0xd35400, 1);
+    g.fillRoundedRect(0, 0, 128, 38, 10);
+    g.fillStyle(0xffffff, 0.18);
+    g.fillRoundedRect(0, 0, 128, 17, { tl: 10, tr: 10, bl: 0, br: 0 });
+    g.generateTexture('btn-ad', 128, 38);
+    g.destroy();
+
+    // 장비 슬롯 아이콘: 무기(검) / 갑옷(방패) / 장신구(반지)
+    g = this.add.graphics();
+    g.fillStyle(0xbdc3c7, 1);
+    g.fillTriangle(22, 4, 27, 26, 17, 26);      // 칼날
+    g.fillStyle(0x8e6a3a, 1);
+    g.fillRect(15, 27, 14, 5);                   // 가드
+    g.fillRect(20, 32, 4, 9);                    // 손잡이
+    g.generateTexture('equip0', 44, 44);
+    g.destroy();
+    g = this.add.graphics();
+    g.fillStyle(0x7f8c8d, 1);
+    g.fillRoundedRect(8, 6, 28, 24, 6);          // 방패 상단
+    g.fillTriangle(8, 26, 36, 26, 22, 40);       // 방패 하단
+    g.fillStyle(0xf1c40f, 1);
+    g.fillCircle(22, 20, 5);                     // 문장
+    g.generateTexture('equip1', 44, 44);
+    g.destroy();
+    g = this.add.graphics();
+    g.lineStyle(6, 0xf1c40f, 1);
+    g.strokeCircle(22, 26, 12);                  // 링
+    g.fillStyle(0x9b59b6, 1);
+    g.fillTriangle(22, 4, 30, 14, 14, 14);       // 보석
+    g.generateTexture('equip2', 44, 44);
     g.destroy();
 
     // 오버레이 딤

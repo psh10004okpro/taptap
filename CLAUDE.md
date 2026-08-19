@@ -26,3 +26,11 @@
 - 랭킹 쓰기는 Edge Function 경유만. 클라이언트에서 leaderboard 테이블 직접 insert/update 금지.
 - `relicsFor` 곡선 변경 시 `supabase/functions/submit-score/index.ts` 의 사본도 함께 갱신할 것.
 - 세이브 스키마 변경 시 v 를 올리고 load() 에 하위호환 마이그레이션을 추가한다.
+
+## 밸런스/콘텐츠 규칙 (2차 확장)
+- **곡선 변경 시 `npm run sim` 필수** — 벽 위치/환생 페이싱 확인 (docs/BALANCE.md).
+  GOLD_GROWTH < HP_GROWTH 격차가 벽을 만든다. 골드를 HP 비례로 만들지 말 것.
+- 분석 이벤트는 `Analytics.track` 경유, 이벤트 추가 시 docs/ANALYTICS.md 갱신.
+- 광고 보상은 `AdRewards.offer` 경유만 (ad_offer/ad_reward 퍼널 자동 계측).
+  실제 SDK 연동은 `AdProvider` 구현체 교체로만 한다.
+- 장비 statPct 상한 300% (인플레 캡). 일일 퀘스트 골드 보상은 goldMult 미적용 (부스트 악용 방지).

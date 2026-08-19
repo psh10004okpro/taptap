@@ -6,8 +6,10 @@
 //   'gold'          (gold: number)               골드 변경
 //   'stage'         (stage, kills)               스테이지/처치수 변경
 //   'mode'          (mode: Mode)                 farm <-> boss 전환
-//   'upgrade'                                    탭/영웅/유물 레벨 변경
+//   'upgrade'                                    탭/영웅/유물/장비/부스트 변경
 //   'skill'         (id: number)                 스킬 발동
+//   'drop'          (item: EquipItem, equipped)  장비 드롭
+//   'quest'                                      퀘스트 진행/수령 변경
 //   'prestige'      (relics: number)             환생 완료
 // ---------------------------------------------------------------------------
 import {
@@ -17,10 +19,20 @@ import {
   SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT,
   ARTIFACT_TAP_PER_LVL, ARTIFACT_DPS_PER_LVL, ARTIFACT_GOLD_PER_LVL,
   ARTIFACT_CRIT_CHANCE_PER_LVL, ARTIFACT_CRIT_MULT_PER_LVL, ARTIFACT_BOSS_TIME_PER_LVL,
-  tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost,
+  AD_GOLD_BOOST_MULT, AD_GOLD_BOOST_DURATION,
+  EQUIP_SLOTS, RARITIES, EQUIP_DROP_CHANCE, DAILY_QUESTS,
+  tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost, equipStatPct,
 } from '../config';
+import type { EquipItem, QuestMetric } from '../config';
+import { Analytics } from './Analytics';
 
 export type Mode = 'farm' | 'boss';
+
+interface DailyState {
+  date: string; // YYYY-MM-DD (로컬)
+  counters: Record<QuestMetric, number>;
+  claimed: boolean[];
+}
 
 interface SaveData {
   v: number;
@@ -36,6 +48,9 @@ interface SaveData {
   artifactLevels: number[];
   skillReadyAt: number[];
   skillActiveUntil: number[];
+  goldBoostUntil: number;
+  equipment: (EquipItem | null)[];
+  daily: DailyState;
   playerName: string;
   bossFailed: boolean;
   lastSeen: number;
@@ -47,6 +62,19 @@ const SAVE_KEY = 'taptap-titans-v1';
 function num(v: unknown, fallback: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function freshDaily(): DailyState {
+  return {
+    date: todayStr(),
+    counters: { kills: 0, bossKills: 0, skillUses: 0 },
+    claimed: DAILY_QUESTS.map(() => false),
+  };
 }
 
 type Listener = (...args: unknown[]) => void;
@@ -81,6 +109,11 @@ export class GameState extends Emitter {
   /** 스킬 재사용 가능 시각 / 효과 종료 시각 (epoch ms — 오프라인에도 흐름) */
   skillReadyAt: number[] = SKILLS.map(() => 0);
   skillActiveUntil: number[] = SKILLS.map(() => 0);
+  /** 광고 보상: 골드 x2 부스트 종료 시각 (epoch ms) */
+  goldBoostUntil = 0;
+  /** 슬롯별 장착 장비 (보스 드롭, 상위 아이템 자동 교체) */
+  equipment: (EquipItem | null)[] = EQUIP_SLOTS.map(() => null);
+  daily: DailyState = freshDaily();
   playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
@@ -89,6 +122,8 @@ export class GameState extends Emitter {
   /** 세이브 세대. 다른 탭이 더 새 세대를 쓰면 이 인스턴스는 stale 이 되어 저장을 멈춘다 */
   private gen = 0;
   private stale = false;
+  /** 벽 계측: 현재 스테이지 진입 시각 */
+  private stageEnteredAt = Date.now();
 
   static readonly SAVE_KEY = SAVE_KEY;
 
@@ -99,7 +134,10 @@ export class GameState extends Emitter {
     if (!raw) return;
     try {
       const g = (JSON.parse(raw) as SaveData).gen;
-      if (typeof g === 'number' && g > this.gen) this.stale = true;
+      if (typeof g === 'number' && g > this.gen) {
+        this.stale = true;
+        Analytics.track('save_stale', {});
+      }
     } catch { /* ignore */ }
   }
 
@@ -109,8 +147,15 @@ export class GameState extends Emitter {
     return 1 + this.artifactLevels[id] * perLvl;
   }
 
+  private equipMult(slot: number): number {
+    const item = this.equipment[slot];
+    return item ? 1 + item.statPct / 100 : 1;
+  }
+
   tapDamage(): number {
-    let dmg = tapDamageAt(this.tapLevel) * this.artifactMult(ARTIFACT_TAP_PER_LVL, 0);
+    let dmg = tapDamageAt(this.tapLevel)
+      * this.artifactMult(ARTIFACT_TAP_PER_LVL, 0)
+      * this.equipMult(0);
     if (this.isSkillActive(0)) dmg *= SKILL_TAP_MULT;
     return Math.max(1, Math.round(dmg));
   }
@@ -118,14 +163,15 @@ export class GameState extends Emitter {
   totalDps(): number {
     let dps = 0;
     for (const h of HEROES) dps += heroDps(h, this.heroLevels[h.id]);
-    dps *= this.artifactMult(ARTIFACT_DPS_PER_LVL, 1);
+    dps *= this.artifactMult(ARTIFACT_DPS_PER_LVL, 1) * this.equipMult(1);
     if (this.isSkillActive(1)) dps *= SKILL_DPS_MULT;
     return dps;
   }
 
   goldMult(): number {
-    let m = this.artifactMult(ARTIFACT_GOLD_PER_LVL, 2);
+    let m = this.artifactMult(ARTIFACT_GOLD_PER_LVL, 2) * this.equipMult(2);
     if (this.isSkillActive(2)) m *= SKILL_GOLD_MULT;
+    if (this.isGoldBoostActive()) m *= AD_GOLD_BOOST_MULT;
     return m;
   }
 
@@ -146,6 +192,7 @@ export class GameState extends Emitter {
   heroDps(id: number): number {
     return heroDps(HEROES[id], this.heroLevels[id])
       * this.artifactMult(ARTIFACT_DPS_PER_LVL, 1)
+      * this.equipMult(1)
       * (this.isSkillActive(1) ? SKILL_DPS_MULT : 1);
   }
 
@@ -182,21 +229,54 @@ export class GameState extends Emitter {
     const def = SKILLS[id];
     this.skillActiveUntil[id] = now + def.duration;
     this.skillReadyAt[id] = now + def.cooldown;
+    this.bumpQuest('skillUses');
+    Analytics.track('skill_use', { id, stage: this.stage });
     this.emit('skill', id);
     this.emit('upgrade'); // DPS/탭뎀 표기 갱신
     return true;
   }
 
+  // --- 광고 보상 슬롯 -------------------------------------------------------
+
+  isGoldBoostActive(): boolean { return Date.now() < this.goldBoostUntil; }
+  goldBoostLeft(): number { return Math.max(0, this.goldBoostUntil - Date.now()); }
+
+  /** 광고 보상: 골드 x2 부스트 (연장 아닌 갱신) */
+  activateGoldBoost(): void {
+    this.goldBoostUntil = Date.now() + AD_GOLD_BOOST_DURATION;
+    this.emit('upgrade');
+  }
+
+  /** 광고 보상: 모든 스킬 쿨다운 초기화 */
+  resetSkillCooldowns(): void {
+    this.skillReadyAt = SKILLS.map(() => 0);
+    this.emit('upgrade');
+  }
+
+  /** 쿨다운 리셋 광고가 의미 있는가 (하나라도 쿨다운 중) */
+  anySkillOnCooldown(): boolean {
+    return SKILLS.some((s) => this.isSkillUnlocked(s.id)
+      && !this.isSkillActive(s.id) && this.skillCooldownLeft(s.id) > 0);
+  }
+
   // --- 전투 진행 -----------------------------------------------------------
 
-  /** 몬스터 처치 처리. 골드 지급 + 진행/보스 전환. */
+  /** 몬스터 처치 처리. 골드 지급 + 진행/보스 전환 + 드롭/퀘스트. */
   recordKill(isBoss: boolean): void {
     this.addGold(Math.round(killGold(this.stage, isBoss) * this.goldMult()));
+    this.bumpQuest('kills');
     if (isBoss) {
+      this.bumpQuest('bossKills');
+      Analytics.track('stage_clear', {
+        stage: this.stage,
+        dwellMs: Date.now() - this.stageEnteredAt,
+      });
+      this.rollEquipDrop();
       this.stage += 1;
       this.maxStage = Math.max(this.maxStage, this.stage);
       this.kills = 0;
       this.bossFailed = false;
+      this.stageEnteredAt = Date.now();
       this.setMode('farm');
     } else if (this.kills < MONSTERS_PER_STAGE - 1) {
       this.kills += 1;
@@ -210,6 +290,7 @@ export class GameState extends Emitter {
   /** 보스 시간 초과 → 파밍 모드로 후퇴 */
   failBoss(): void {
     this.bossFailed = true;
+    Analytics.track('boss_fail', { stage: this.stage });
     this.setMode('farm');
     this.emit('stage', this.stage, this.kills);
   }
@@ -247,6 +328,76 @@ export class GameState extends Emitter {
     return true;
   }
 
+  // --- 장비 ----------------------------------------------------------------
+
+  /** 보스 처치 시 확률 드롭. 상위 스탯이면 자동 장착. */
+  private rollEquipDrop(): void {
+    if (Math.random() >= EQUIP_DROP_CHANCE) return;
+    // 가중치 기반 등급 추첨
+    const totalW = RARITIES.reduce((a, r) => a + r.weight, 0);
+    let roll = Math.random() * totalW;
+    let rarity = 0;
+    for (let i = 0; i < RARITIES.length; i++) {
+      roll -= RARITIES[i].weight;
+      if (roll <= 0) { rarity = i; break; }
+    }
+    const slot = Math.floor(Math.random() * EQUIP_SLOTS.length);
+    const item: EquipItem = {
+      slot, rarity,
+      statPct: equipStatPct(rarity, this.stage),
+      stage: this.stage,
+    };
+    const cur = this.equipment[slot];
+    const equipped = !cur || item.statPct > cur.statPct;
+    if (equipped) this.equipment[slot] = item;
+    Analytics.track('equip_drop', { slot, rarity, statPct: item.statPct, stage: this.stage, equipped });
+    this.emit('drop', item, equipped);
+    if (equipped) this.emit('upgrade');
+  }
+
+  // --- 일일 퀘스트 ----------------------------------------------------------
+
+  /** 날짜가 바뀌었으면 일일 퀘스트 리셋 */
+  ensureDaily(): void {
+    if (this.daily.date !== todayStr()) {
+      this.daily = freshDaily();
+      this.emit('quest');
+    }
+  }
+
+  private bumpQuest(metric: QuestMetric): void {
+    this.ensureDaily();
+    this.daily.counters[metric] += 1;
+    this.emit('quest');
+  }
+
+  questProgress(id: number): number {
+    return Math.min(this.daily.counters[DAILY_QUESTS[id].metric], DAILY_QUESTS[id].target);
+  }
+
+  canClaimQuest(id: number): boolean {
+    return !this.daily.claimed[id] && this.questProgress(id) >= DAILY_QUESTS[id].target;
+  }
+
+  /** 퀘스트 보상 수령. gold 보상은 현재 스테이지 killGold 배수 (부스트 미적용) */
+  claimQuest(id: number): boolean {
+    this.ensureDaily();
+    if (!this.canClaimQuest(id)) return false;
+    const q = DAILY_QUESTS[id];
+    this.daily.claimed[id] = true;
+    let rewarded = 0;
+    if (q.reward === 'gold') {
+      rewarded = killGold(this.stage, false) * q.amount;
+      this.addGold(rewarded);
+    } else {
+      rewarded = q.amount;
+      this.addRelics(q.amount);
+    }
+    Analytics.track('quest_claim', { id, reward: q.reward, amount: rewarded, stage: this.stage });
+    this.emit('quest');
+    return true;
+  }
+
   // --- 업그레이드 ----------------------------------------------------------
 
   tryBuyTap(): boolean {
@@ -254,6 +405,7 @@ export class GameState extends Emitter {
     if (this.gold < cost) return false;
     this.gold -= cost;
     this.tapLevel += 1;
+    Analytics.track('upgrade_buy', { kind: 'tap', level: this.tapLevel, cost });
     this.emit('gold', this.gold);
     this.emit('upgrade');
     return true;
@@ -264,6 +416,7 @@ export class GameState extends Emitter {
     if (this.gold < cost) return false;
     this.gold -= cost;
     this.heroLevels[id] += 1;
+    Analytics.track('upgrade_buy', { kind: 'hero', id, level: this.heroLevels[id], cost });
     this.emit('gold', this.gold);
     this.emit('upgrade');
     return true;
@@ -284,6 +437,7 @@ export class GameState extends Emitter {
     if (this.relics < cost) return false;
     this.relics -= cost;
     this.artifactLevels[id] += 1;
+    Analytics.track('upgrade_buy', { kind: 'artifact', id, level: this.artifactLevels[id], cost });
     this.emit('upgrade');
     return true;
   }
@@ -293,6 +447,7 @@ export class GameState extends Emitter {
   doPrestige(): boolean {
     if (!this.canPrestige()) return false;
     const gain = this.prestigeGain();
+    Analytics.track('prestige', { atStage: this.maxStage, gained: gain, totalRelics: this.relicsEarned + gain });
     this.gold = 0;
     this.stage = 1;
     this.kills = 0;
@@ -302,7 +457,8 @@ export class GameState extends Emitter {
     this.relicsEarned = this.prestigeRelics();
     this.bossFailed = false;
     this.mode = 'farm';
-    // 유물(artifactLevels)·스킬 쿨다운·이름은 유지
+    this.stageEnteredAt = Date.now();
+    // 유물 강화·장비·스킬 쿨다운·이름·퀘스트는 유지
     this.save();
     this.emit('prestige', gain);
     this.emit('gold', this.gold);
@@ -327,7 +483,7 @@ export class GameState extends Emitter {
     this.gen += 1;
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 2,
+      v: 3,
       gen: this.gen,
       gold: this.gold,
       stage: this.stage,
@@ -340,6 +496,9 @@ export class GameState extends Emitter {
       artifactLevels: this.artifactLevels,
       skillReadyAt: this.skillReadyAt,
       skillActiveUntil: this.skillActiveUntil,
+      goldBoostUntil: this.goldBoostUntil,
+      equipment: this.equipment,
+      daily: this.daily,
       playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
@@ -372,7 +531,7 @@ export class GameState extends Emitter {
         const lvl = Math.max(0, Math.floor(num(d.artifactLevels?.[a.id], 0)));
         return a.maxLevel > 0 ? Math.min(a.maxLevel, lvl) : lvl;
       });
-      // 스킬 시계 클램프: 기기 시계 롤백이 쿨다운을 무기한 잠그거나
+      // 스킬/부스트 시계 클램프: 기기 시계 롤백이 쿨다운을 무기한 잠그거나
       // 버프를 장시간 유지하지 못하게, 정상 상한(now + cooldown/duration)으로 자른다
       this.skillReadyAt = SKILLS.map(
         (s) => Math.min(Math.max(0, num(d.skillReadyAt?.[s.id], 0)), now + s.cooldown),
@@ -380,10 +539,41 @@ export class GameState extends Emitter {
       this.skillActiveUntil = SKILLS.map(
         (s) => Math.min(Math.max(0, num(d.skillActiveUntil?.[s.id], 0)), now + s.duration),
       );
+      this.goldBoostUntil = Math.min(
+        Math.max(0, num(d.goldBoostUntil, 0)), now + AD_GOLD_BOOST_DURATION,
+      );
+      // 장비 (v2 이하 세이브에는 없음)
+      this.equipment = EQUIP_SLOTS.map((s) => {
+        const e = d.equipment?.[s.id];
+        if (!e || typeof e !== 'object') return null;
+        const rarity = Math.min(RARITIES.length - 1, Math.max(0, Math.floor(num(e.rarity, 0))));
+        return {
+          slot: s.id,
+          rarity,
+          statPct: Math.min(300, Math.max(0, num(e.statPct, 0))),
+          stage: Math.max(1, Math.floor(num(e.stage, 1))),
+        };
+      });
+      // 일일 퀘스트 (날짜 다르면 리셋)
+      const dd = d.daily;
+      if (dd && typeof dd.date === 'string' && dd.date === todayStr()) {
+        this.daily = {
+          date: dd.date,
+          counters: {
+            kills: Math.max(0, Math.floor(num(dd.counters?.kills, 0))),
+            bossKills: Math.max(0, Math.floor(num(dd.counters?.bossKills, 0))),
+            skillUses: Math.max(0, Math.floor(num(dd.counters?.skillUses, 0))),
+          },
+          claimed: DAILY_QUESTS.map((q) => dd.claimed?.[q.id] === true),
+        };
+      } else {
+        this.daily = freshDaily();
+      }
       this.playerName = typeof d.playerName === 'string' ? d.playerName.slice(0, 12) : '';
       this.bossFailed = d.bossFailed === true;
       // 보스전 도중 저장이었다면 파밍부터 재개
       this.mode = 'farm';
+      this.stageEnteredAt = now;
       // lastSeen 이 미래(시계 롤백)면 오프라인 보상 없음
       const away = (now - Math.min(num(d.lastSeen, now), now)) / 1000;
       return away > 60 ? Math.min(away, OFFLINE_CAP_SEC) : 0;

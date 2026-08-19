@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from './config';
 import { GameState } from './core/GameState';
+import { Analytics } from './core/Analytics';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
@@ -16,6 +17,15 @@ function boot(): void {
 
   const state = new GameState();
   const awaySec = state.load();
+  state.ensureDaily();
+  Analytics.debug = import.meta.env.DEV; // 개발 모드에서만 콘솔 출력
+  Analytics.track('session_start', {
+    resumed: GameState.hasSave(),
+    offlineSec: Math.round(awaySec),
+    stage: state.stage,
+    maxStage: state.maxStage,
+    relics: state.relicsEarned,
+  });
 
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -50,6 +60,7 @@ function boot(): void {
   // 자동 저장: 5초 주기 + 백그라운드 전환/종료 시
   // (save() 내부에서 세이브 세대를 검사해, 다른 탭이 더 최신이면 쓰지 않는다)
   setInterval(() => state.save(), 5000);
+  setInterval(() => state.ensureDaily(), 60_000); // 자정 넘김 감지
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') state.save();
   });

@@ -23,6 +23,9 @@ npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
 | 성장 | 탭 공격력, 영웅 8명(25레벨마다 DPS x2) |
 | 환생 | 스테이지 25+에서 유물 획득(화폐). 골드·영웅·스테이지 초기화, 유물 강화는 유지 |
 | 유물 상점 | 유물 소비 영구 강화 6종: 탭뎀/DPS/골드/크리확률/크리배율/보스시간 |
+| 장비 | 보스 처치 18% 드롭, 3슬롯(무기/갑옷/장신구) x 4등급, 상위 자동 장착 |
+| 일일 퀘스트 | 처치/보스/스킬 3종, 매일 리셋, 골드·유물 보상 |
+| 광고 보상 슬롯 | 골드 x2(30분)·스킬 쿨다운 리셋·오프라인 2배 — Mock 광고, SDK 는 Provider 교체만 |
 | 랭킹 | Supabase 온라인 랭킹(서버 검증) 또는 로컬 모드 자동 폴백 |
 | 저장 | localStorage 자동 저장(5초/백그라운드 전환), 오프라인 보상(DPS x 40%, 최대 4시간) |
 
@@ -32,13 +35,16 @@ npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
 src/config.ts             밸런스 곡선·영웅/스킬/유물 정의 (순수 TS)
 src/core/GameState.ts     중앙 상태 + 이벤트 (Phaser 비의존)
 src/core/Leaderboard.ts   랭킹 클라이언트 (Supabase / 로컬 폴백)
+src/core/AdRewards.ts     보상형 광고 훅 (AdProvider 인터페이스 + Mock)
+src/core/Analytics.ts     분석 이벤트 (docs/ANALYTICS.md)
+sim/                      밸런스 시뮬레이터 (docs/BALANCE.md) — npm run sim
 src/core/format.ts        큰 숫자 포맷 (1.2K, 3.4M ...)
 src/scenes/BootScene      절차 텍스처 생성 (몬스터/보스/스킬/유물/UI)
 src/scenes/GameScene      전투: 스폰·데미지·보스 타이머·분신술·이펙트 풀
 src/scenes/UIScene        HUD·스킬바·탭 패널(영웅/유물/랭킹)·팝업
 supabase/                 랭킹 서버: RLS 스키마 + 점수 검증 Edge Function
 android/                  Capacitor 안드로이드 프로젝트 (세로 고정)
-tests/game.spec.ts        Playwright E2E 11종 (window.__taptap 훅)
+tests/game.spec.ts        Playwright E2E 16종 (window.__taptap 훅)
 ```
 
 ## 온라인 랭킹 켜기

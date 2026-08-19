@@ -1,0 +1,1875 @@
+{
+ "active": {
+  "profile": "액티브 (4탭/초, 스킬 사용)",
+  "clears": [
+   {
+    "stage": 1,
+    "t": 50,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 2,
+    "t": 57.52716049382716,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 3,
+    "t": 64.25356652949246,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 4,
+    "t": 70.6081786888216,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 5,
+    "t": 76.4738165489039,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 6,
+    "t": 82.33162596531213,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 7,
+    "t": 88.18654320585821,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 8,
+    "t": 94.0394101292643,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 9,
+    "t": 99.97327668655169,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 10,
+    "t": 105.90972779734835,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 11,
+    "t": 111.93948898839551,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 12,
+    "t": 118.07282217453711,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 13,
+    "t": 124.21624135957799,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 14,
+    "t": 130.47412920731136,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 15,
+    "t": 136.74343232673945,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 16,
+    "t": 143.02215707923966,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 17,
+    "t": 149.31110491795295,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 18,
+    "t": 155.6107572757121,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 19,
+    "t": 162.04020306765378,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 20,
+    "t": 168.28133790653385,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 21,
+    "t": 174.6471933390248,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 22,
+    "t": 181.02524303635093,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 23,
+    "t": 187.54175201771486,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 24,
+    "t": 194.0716993912975,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 25,
+    "t": 200.7556065752097,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 26,
+    "t": 207.45407221125652,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 27,
+    "t": 214.32332399736654,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 28,
+    "t": 221.3802044488158,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 29,
+    "t": 228.45440769933793,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 30,
+    "t": 235.73558986976207,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 31,
+    "t": 243.03571139574342,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 32,
+    "t": 250.56442055234936,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 33,
+    "t": 258.114168516672,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 34,
+    "t": 265.9170352489364,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 35,
+    "t": 273.74309380062994,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 36,
+    "t": 281.8508119450107,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 37,
+    "t": 290.5145796918152,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 38,
+    "t": 299.2481608716148,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 39,
+    "t": 308.8339788669329,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 40,
+    "t": 318.4964354582368,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 41,
+    "t": 329.10259030058893,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 42,
+    "t": 339.7927976699133,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 43,
+    "t": 351.5280814897394,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 44,
+    "t": 363.3554161022945,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 45,
+    "t": 376.33731835482405,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 46,
+    "t": 389.42094329406655,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 47,
+    "t": 403.78308782895266,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 48,
+    "t": 419.549980492938,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 49,
+    "t": 435.44055681986197,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 50,
+    "t": 452.8852374904887,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 51,
+    "t": 470.46561924858173,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 52,
+    "t": 489.7632081155063,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 53,
+    "t": 509.2108656597123,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 54,
+    "t": 530.562272916343,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 55,
+    "t": 552.0780187472685,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 56,
+    "t": 575.6988921991551,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 57,
+    "t": 601.6343287373553,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 58,
+    "t": 627.7663600613569,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 59,
+    "t": 656.4601335197981,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 60,
+    "t": 685.3726738783787,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 61,
+    "t": 717.1144182651597,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 62,
+    "t": 749.0977024545679,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 63,
+    "t": 784.2120755242643,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 64,
+    "t": 819.5931128233591,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 65,
+    "t": 858.4389278756404,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 66,
+    "t": 897.5787451401746,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 67,
+    "t": 940.5527501557087,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 68,
+    "t": 987.7408487166603,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 69,
+    "t": 1035.2839860535994,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 70,
+    "t": 1087.478993451888,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 71,
+    "t": 1140.0684838507714,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 72,
+    "t": 1197.8163287456753,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 73,
+    "t": 1255.9969081564554,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 74,
+    "t": 1319.883191563691,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 75,
+    "t": 1384.2458160644262,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 76,
+    "t": 1454.9152165458577,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 77,
+    "t": 1556.1096636620443,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 78,
+    "t": 1657.8328148474106,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 79,
+    "t": 1760.0886453108342,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 80,
+    "t": 1862.8771839671003,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 81,
+    "t": 1966.206245782552,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 82,
+    "t": 2070.079132679002,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 83,
+    "t": 2174.4991983098157,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 84,
+    "t": 2309.470184420275,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 85,
+    "t": 2468.7591732308974,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 86,
+    "t": 2598.5610117455158,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 87,
+    "t": 2728.879402784043,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 88,
+    "t": 4188.69552598758,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 89,
+    "t": 4244.640960814867,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 90,
+    "t": 4306.072415804265,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 91,
+    "t": 4367.958134328422,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 92,
+    "t": 4435.91224652879,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 93,
+    "t": 4504.3688630100305,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 94,
+    "t": 4603.331657668378,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 95,
+    "t": 4702.804308368927,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 96,
+    "t": 4802.790661180437,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 97,
+    "t": 4903.294500818022,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 98,
+    "t": 5004.319640118377,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 99,
+    "t": 5105.869929956909,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 100,
+    "t": 5237.949228957187,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 101,
+    "t": 5370.561470043408,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 102,
+    "t": 5503.7105884274615,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 103,
+    "t": 5637.40055230098,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 104,
+    "t": 5771.6353582448355,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 105,
+    "t": 8696.09918138823,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 106,
+    "t": 8830.004383969608,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 107,
+    "t": 11664.456009029669,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 108,
+    "t": 12543.265274661466,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 109,
+    "t": 13872.583294289721,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 110,
+    "t": 15442.413826302905,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 111,
+    "t": 16892.76066279594,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 112,
+    "t": 18133.62762012054,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 113,
+    "t": 19375.018543884395,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 114,
+    "t": 33187.32364645331,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 115,
+    "t": 35236.3780347826,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 116,
+    "t": 36685.94298750164,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 117,
+    "t": 37986.02227929589,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 118,
+    "t": 39346.61971300964,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 119,
+    "t": 40677.73911951709,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 120,
+    "t": 42069.384357883784,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 121,
+    "t": 44511.55931606989,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 122,
+    "t": 47674.267910643626,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 123,
+    "t": 51077.51408699502,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 124,
+    "t": 80062.62540685528,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 125,
+    "t": 82503.6303439937,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 126,
+    "t": 84675.16026672182,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 127,
+    "t": 87717.21905659813,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 128,
+    "t": 89799.8106238495,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 129,
+    "t": 92182.93890767061,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 130,
+    "t": 95196.6078763461,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 131,
+    "t": 99440.82152750976,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 132,
+    "t": 102365.58388834928,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 133,
+    "t": 107024.68033557471,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 134,
+    "t": 109944.2876576657,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 135,
+    "t": 112984.4096318496,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 136,
+    "t": 176704.05473298038,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 137,
+    "t": 181909.5927211424,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 138,
+    "t": 186095.6892106589,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 139,
+    "t": 190612.3483308918,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 140,
+    "t": 194079.57424173504,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 141,
+    "t": 198657.37113383898,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 142,
+    "t": 203265.74322883776,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 143,
+    "t": 207424.6947795802,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 144,
+    "t": 211554.23007035832,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 145,
+    "t": 217927.73772795702,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 146,
+    "t": 222411.7888753573,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 147,
+    "t": 226506.3875309321,
+    "prestigeNo": 5
+   }
+  ],
+  "prestiges": [
+   {
+    "t": 2998.879402784043,
+    "atStage": 88,
+    "gained": 46,
+    "totalRelics": 46
+   },
+   {
+    "t": 6041.6353582448355,
+    "atStage": 105,
+    "gained": 15,
+    "totalRelics": 61
+   },
+   {
+    "t": 19645.018543884395,
+    "atStage": 114,
+    "gained": 9,
+    "totalRelics": 70
+   },
+   {
+    "t": 51347.51408699502,
+    "atStage": 124,
+    "gained": 10,
+    "totalRelics": 80
+   },
+   {
+    "t": 113254.4096318496,
+    "atStage": 136,
+    "gained": 13,
+    "totalRelics": 93
+   },
+   {
+    "t": 226776.3875309321,
+    "atStage": 148,
+    "gained": 13,
+    "totalRelics": 106
+   }
+  ],
+  "walls": [
+   {
+    "stage": 107,
+    "dwellSec": 2834.451625060061,
+    "kind": "hard",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 108,
+    "dwellSec": 878.8092656317967,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 109,
+    "dwellSec": 1329.3180196282556,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 110,
+    "dwellSec": 1569.830532013184,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 111,
+    "dwellSec": 1450.346836493034,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 112,
+    "dwellSec": 1240.8669573246007,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 113,
+    "dwellSec": 1241.3909237638545,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 114,
+    "dwellSec": 1184.7168532270443,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 115,
+    "dwellSec": 2049.054388329292,
+    "kind": "hard",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 116,
+    "dwellSec": 1449.5649527190399,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 117,
+    "dwellSec": 1300.0792917942454,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 118,
+    "dwellSec": 1360.5974337137523,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 119,
+    "dwellSec": 1331.1194065074524,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 120,
+    "dwellSec": 1391.645238366691,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 121,
+    "dwellSec": 2442.1749581861077,
+    "kind": "hard",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 122,
+    "dwellSec": 3162.7085945737344,
+    "kind": "hard",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 123,
+    "dwellSec": 3403.246176351393,
+    "kind": "hard",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 124,
+    "dwellSec": 2800.4838045969373,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 125,
+    "dwellSec": 2441.004937138423,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 126,
+    "dwellSec": 2171.529922728121,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 127,
+    "dwellSec": 3042.058789876304,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 128,
+    "dwellSec": 2082.5915672513656,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 129,
+    "dwellSec": 2383.128283821119,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 130,
+    "dwellSec": 3013.6689686754835,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 131,
+    "dwellSec": 4244.213651163664,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 132,
+    "dwellSec": 2924.7623608395224,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 133,
+    "dwellSec": 4659.096447225427,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 134,
+    "dwellSec": 2919.6073220909893,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 135,
+    "dwellSec": 3040.1219741839013,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 136,
+    "dwellSec": 3344.9835858659353,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 137,
+    "dwellSec": 5205.537988162017,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 138,
+    "dwellSec": 4186.096489516494,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 139,
+    "dwellSec": 4516.659120232915,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 140,
+    "dwellSec": 3467.2259108432336,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 141,
+    "dwellSec": 4577.796892103943,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 142,
+    "dwellSec": 4608.372094998776,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 143,
+    "dwellSec": 4158.951550742437,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 144,
+    "dwellSec": 4129.53529077812,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 145,
+    "dwellSec": 6373.507657598704,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 146,
+    "dwellSec": 4484.051147400285,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 147,
+    "dwellSec": 4094.5986555747804,
+    "kind": "hard",
+    "prestigeNo": 5
+   }
+  ],
+  "maxStage": 148,
+  "simDays": 3.0001041439149074
+ },
+ "casual": {
+  "profile": "캐주얼 (1탭/초, 스킬 사용)",
+  "clears": [
+   {
+    "stage": 1,
+    "t": 100,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 2,
+    "t": 119.39814814814815,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 3,
+    "t": 133.89870931537598,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 4,
+    "t": 147.94483090866737,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 5,
+    "t": 156.95118561692848,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 6,
+    "t": 165.9531425640909,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 7,
+    "t": 174.96059269627068,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 8,
+    "t": 183.96008876170464,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 9,
+    "t": 192.98267531004888,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 10,
+    "t": 202.76729717057924,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 11,
+    "t": 213.42193583764026,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 12,
+    "t": 224.20657153099808,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 13,
+    "t": 236.0179023731614,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 14,
+    "t": 248.89768588558957,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 15,
+    "t": 261.955375492423,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 16,
+    "t": 275.106258882446,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 17,
+    "t": 288.3764340103048,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 18,
+    "t": 301.77760549500925,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 19,
+    "t": 316.39304489219086,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 20,
+    "t": 325.5395673502201,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 21,
+    "t": 335.545655261026,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 22,
+    "t": 345.6604365380372,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 23,
+    "t": 356.73552545336497,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 24,
+    "t": 367.92987828115,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 25,
+    "t": 380.20264011426013,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 26,
+    "t": 392.6010425609044,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 27,
+    "t": 406.20180683235577,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 28,
+    "t": 421.1247663021678,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 29,
+    "t": 436.19310061243505,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 30,
+    "t": 452.71251099089784,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 31,
+    "t": 469.38831477955296,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 32,
+    "t": 487.66185091661157,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 33,
+    "t": 506.1101718728521,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 34,
+    "t": 526.3310950275048,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 35,
+    "t": 546.7437535305567,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 36,
+    "t": 569.1507235283555,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 37,
+    "t": 593.7175964439532,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 38,
+    "t": 618.5124478752293,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 39,
+    "t": 645.7050745490205,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 40,
+    "t": 673.1451913572841,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 41,
+    "t": 703.2454873270706,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 42,
+    "t": 733.6137585631093,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 43,
+    "t": 766.9341406284483,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 44,
+    "t": 800.5435171176472,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 45,
+    "t": 837.4065588744363,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 46,
+    "t": 874.5884653488943,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 47,
+    "t": 915.3804880297721,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 48,
+    "t": 960.1435862730013,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 49,
+    "t": 1005.2949929619961,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 50,
+    "t": 1054.8407297839635,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 51,
+    "t": 1104.8070456929179,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 52,
+    "t": 1159.6188533064173,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 53,
+    "t": 1214.8955737596514,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 54,
+    "t": 1275.5662709100516,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 55,
+    "t": 1336.737846027486,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 56,
+    "t": 1403.8699805233823,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 57,
+    "t": 1477.5714782678215,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 58,
+    "t": 1551.8569754063951,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 59,
+    "t": 1656.679541148322,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 60,
+    "t": 1785.849678892923,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 61,
+    "t": 1885.4930617348243,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 62,
+    "t": 1985.6777748008774,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 63,
+    "t": 2086.4117777060706,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 64,
+    "t": 2217.649004718432,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 65,
+    "t": 2349.4295214127083,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 66,
+    "t": 2481.7625751893142,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 67,
+    "t": 2614.652217615474,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 68,
+    "t": 2748.1006936782774,
+    "prestigeNo": 0
+   },
+   {
+    "stage": 69,
+    "t": 4247.973560202122,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 70,
+    "t": 4313.9897113575025,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 71,
+    "t": 4380.507675209697,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 72,
+    "t": 4453.550693168868,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 73,
+    "t": 4527.142992638864,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 74,
+    "t": 4631.280400460575,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 75,
+    "t": 4735.959495149053,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 76,
+    "t": 4864.984740357356,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 77,
+    "t": 4964.52545925106,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 78,
+    "t": 5094.583048571162,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 79,
+    "t": 5225.156245821889,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 80,
+    "t": 5356.253980805462,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 81,
+    "t": 5487.879911595559,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 82,
+    "t": 5620.037124144509,
+    "prestigeNo": 1
+   },
+   {
+    "stage": 83,
+    "t": 8381.367268044854,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 84,
+    "t": 8513.68818672742,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 85,
+    "t": 10746.539243741168,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 86,
+    "t": 11989.930956999258,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 87,
+    "t": 13413.86630966567,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 88,
+    "t": 14598.349422544316,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 89,
+    "t": 16467.187605112547,
+    "prestigeNo": 2
+   },
+   {
+    "stage": 90,
+    "t": 27178.297169174322,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 91,
+    "t": 28452.698049707837,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 92,
+    "t": 29637.649308478394,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 93,
+    "t": 31446.92064763726,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 94,
+    "t": 33076.7040647469,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 95,
+    "t": 34467.003637554095,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 96,
+    "t": 35767.8231128972,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 97,
+    "t": 37159.16626998827,
+    "prestigeNo": 3
+   },
+   {
+    "stage": 98,
+    "t": 58365.66214539915,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 99,
+    "t": 60114.670381298194,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 100,
+    "t": 62254.1888860251,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 101,
+    "t": 66194.22141014494,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 102,
+    "t": 69354.77175445911,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 103,
+    "t": 72065.84371637633,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 104,
+    "t": 74867.44118007575,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 105,
+    "t": 77609.56802045736,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 106,
+    "t": 80112.22815194412,
+    "prestigeNo": 4
+   },
+   {
+    "stage": 107,
+    "t": 124972.87041343155,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 108,
+    "t": 127684.81046772364,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 109,
+    "t": 132287.28242519914,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 110,
+    "t": 136890.2902189028,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 111,
+    "t": 141013.8378092713,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 112,
+    "t": 145887.9291837905,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 113,
+    "t": 149682.56836603908,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 114,
+    "t": 154701.5509710254,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 115,
+    "t": 161281.04361004534,
+    "prestigeNo": 5
+   },
+   {
+    "stage": 116,
+    "t": 249281.38135443014,
+    "prestigeNo": 6
+   },
+   {
+    "stage": 117,
+    "t": 254428.2525651451,
+    "prestigeNo": 6
+   }
+  ],
+  "prestiges": [
+   {
+    "t": 3018.1006936782774,
+    "atStage": 69,
+    "gained": 31,
+    "totalRelics": 31
+   },
+   {
+    "t": 5890.037124144509,
+    "atStage": 83,
+    "gained": 11,
+    "totalRelics": 42
+   },
+   {
+    "t": 16737.187605112547,
+    "atStage": 90,
+    "gained": 6,
+    "totalRelics": 48
+   },
+   {
+    "t": 37429.16626998827,
+    "atStage": 98,
+    "gained": 7,
+    "totalRelics": 55
+   },
+   {
+    "t": 80382.22815194412,
+    "atStage": 107,
+    "gained": 8,
+    "totalRelics": 63
+   },
+   {
+    "t": 161551.04361004534,
+    "atStage": 116,
+    "gained": 9,
+    "totalRelics": 72
+   }
+  ],
+  "walls": [
+   {
+    "stage": 85,
+    "dwellSec": 2232.851057013748,
+    "kind": "hard",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 86,
+    "dwellSec": 1243.39171325809,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 87,
+    "dwellSec": 1423.9353526664108,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 88,
+    "dwellSec": 1184.4831128786464,
+    "kind": "soft",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 89,
+    "dwellSec": 1868.8381825682318,
+    "kind": "hard",
+    "prestigeNo": 2
+   },
+   {
+    "stage": 90,
+    "dwellSec": 1513.854262513345,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 91,
+    "dwellSec": 1274.4008805335143,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 92,
+    "dwellSec": 1184.9512587705576,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 93,
+    "dwellSec": 1809.2713391588659,
+    "kind": "hard",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 94,
+    "dwellSec": 1629.7834171096365,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 95,
+    "dwellSec": 1390.2995728071983,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 96,
+    "dwellSec": 1300.8194753431017,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 97,
+    "dwellSec": 1391.3431570910761,
+    "kind": "soft",
+    "prestigeNo": 3
+   },
+   {
+    "stage": 98,
+    "dwellSec": 1364.6669270215061,
+    "kind": "soft",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 99,
+    "dwellSec": 1749.0082358990476,
+    "kind": "soft",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 100,
+    "dwellSec": 2139.518504726904,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 101,
+    "dwellSec": 3940.032524119837,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 102,
+    "dwellSec": 3160.550344314179,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 103,
+    "dwellSec": 2711.071961917216,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 104,
+    "dwellSec": 2801.5974636994215,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 105,
+    "dwellSec": 2742.1268403816066,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 106,
+    "dwellSec": 2502.6601314867585,
+    "kind": "hard",
+    "prestigeNo": 4
+   },
+   {
+    "stage": 107,
+    "dwellSec": 2681.4120607533114,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 108,
+    "dwellSec": 2711.940054292092,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 109,
+    "dwellSec": 4602.4719574755,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 110,
+    "dwellSec": 4603.007793703669,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 111,
+    "dwellSec": 4123.5475903684855,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 112,
+    "dwellSec": 4874.091374519194,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 113,
+    "dwellSec": 3794.6391822485893,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 114,
+    "dwellSec": 5018.982604986319,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 115,
+    "dwellSec": 6579.49263901994,
+    "kind": "hard",
+    "prestigeNo": 5
+   },
+   {
+    "stage": 116,
+    "dwellSec": 7066.307022544119,
+    "kind": "hard",
+    "prestigeNo": 6
+   },
+   {
+    "stage": 117,
+    "dwellSec": 5146.871210714977,
+    "kind": "hard",
+    "prestigeNo": 6
+   }
+  ],
+  "maxStage": 118,
+  "simDays": 3.000326997281772
+ },
+ "idle": {
+  "profile": "방치 (0탭/초, 스킬 미사용)",
+  "clears": [],
+  "prestiges": [],
+  "walls": [
+   {
+    "stage": 1,
+    "dwellSec": 7230,
+    "kind": "hard",
+    "prestigeNo": 0
+   }
+  ],
+  "maxStage": 1,
+  "simDays": 0.08368055555555555
+ }
+}

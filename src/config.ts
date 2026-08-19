@@ -112,6 +112,71 @@ export const ARTIFACT_CRIT_CHANCE_PER_LVL = 0.01;
 export const ARTIFACT_CRIT_MULT_PER_LVL = 0.5;
 export const ARTIFACT_BOSS_TIME_PER_LVL = 2_000; // ms
 
+// --- 보상형 광고 슬롯 -------------------------------------------------------
+// SDK(AdMob 등) 연동 전에도 게임 시스템으로서 먼저 존재한다. core/AdRewards.ts.
+
+export const AD_GOLD_BOOST_MULT = 2;
+export const AD_GOLD_BOOST_DURATION = 30 * 60_000; // 30분
+export const AD_OFFLINE_MULT = 2; // 오프라인 보상 2배 (팝업에서 1회)
+
+// --- 장비 (보스 드롭, 슬롯당 최고 1개 자동 장착) -----------------------------
+
+export interface EquipSlotDef {
+  id: number;
+  name: string;
+  stat: 'tap' | 'dps' | 'gold';
+}
+
+export const EQUIP_SLOTS: EquipSlotDef[] = [
+  { id: 0, name: '무기', stat: 'tap' },
+  { id: 1, name: '갑옷', stat: 'dps' },
+  { id: 2, name: '장신구', stat: 'gold' },
+];
+
+export interface RarityDef { name: string; color: number; mult: number; weight: number }
+
+export const RARITIES: RarityDef[] = [
+  { name: '일반', color: 0x95a5a6, mult: 1.0, weight: 60 },
+  { name: '희귀', color: 0x3498db, mult: 1.8, weight: 27 },
+  { name: '영웅', color: 0x9b59b6, mult: 3.2, weight: 10 },
+  { name: '전설', color: 0xf1c40f, mult: 6.0, weight: 3 },
+];
+
+export const EQUIP_DROP_CHANCE = 0.18; // 보스 처치당
+
+export interface EquipItem {
+  slot: number;
+  rarity: number;   // RARITIES 인덱스
+  statPct: number;  // 해당 슬롯 스탯 +%
+  stage: number;    // 획득 스테이지
+}
+
+/** 드롭 장비의 스탯% — 등급 배율 x 스테이지 스케일, 상한 300% */
+export function equipStatPct(rarity: number, stage: number): number {
+  const raw = RARITIES[rarity].mult * (5 + stage * 0.25);
+  return Math.min(300, Math.round(raw));
+}
+
+// --- 일일 퀘스트 ------------------------------------------------------------
+
+export type QuestMetric = 'kills' | 'bossKills' | 'skillUses';
+
+export interface QuestDef {
+  id: number;
+  desc: string;
+  metric: QuestMetric;
+  target: number;
+  reward: 'gold' | 'relics';
+  /** gold 는 현재 스테이지 killGold 의 배수, relics 는 개수 */
+  amount: number;
+}
+
+export const DAILY_QUESTS: QuestDef[] = [
+  { id: 0, desc: '몬스터 200마리 처치', metric: 'kills', target: 200, reward: 'gold', amount: 150 },
+  { id: 1, desc: '보스 5회 처치', metric: 'bossKills', target: 5, reward: 'gold', amount: 400 },
+  { id: 2, desc: '스킬 3회 사용', metric: 'skillUses', target: 3, reward: 'relics', amount: 2 },
+];
+
 export const MONSTER_NAMES = [
   '슬라임', '버섯돌이', '가시두꺼비', '동굴박쥐', '고블린',
   '숲도깨비', '진흙괴물', '얼음정령', '모래전갈', '그림자늑대',
@@ -123,16 +188,24 @@ export const BOSS_NAMES = [
 
 // --- 밸런스 곡선 -----------------------------------------------------------
 
+/** 성장률 상수 — 벽(진행 정체)의 위치는 HP_GROWTH 와 GOLD_GROWTH 의 격차가 만든다.
+ *  골드가 HP 를 그대로 따라가면(=같은 성장률) 수입이 난이도를 항상 따라잡아
+ *  벽이 생기지 않는다는 것이 시뮬레이션으로 확인됨 (sim/run.ts). */
+export const HP_GROWTH = 1.55;
+export const GOLD_GROWTH = 1.42; // sim/tune.ts 스윕으로 선정
+export const GOLD_BASE = 4;
+export const BOSS_GOLD_MULT = 12;
+
 /** 일반 몬스터 최대 체력 (스테이지 지수 성장) */
 export function monsterHp(stage: number, isBoss: boolean): number {
-  const base = 18 * Math.pow(1.55, stage - 1);
+  const base = 18 * Math.pow(HP_GROWTH, stage - 1);
   return Math.max(1, Math.round(base * (isBoss ? 6 : 1)));
 }
 
-/** 처치 골드 보상 */
+/** 처치 골드 보상 — HP 와 독립된 완만한 곡선 (격차가 벽을 만든다) */
 export function killGold(stage: number, isBoss: boolean): number {
-  const hp = monsterHp(stage, isBoss);
-  return Math.max(1, Math.round(hp * 0.2 * (isBoss ? 2 : 1)));
+  const base = GOLD_BASE * Math.pow(GOLD_GROWTH, stage - 1);
+  return Math.max(1, Math.round(base * (isBoss ? BOSS_GOLD_MULT : 1)));
 }
 
 /** 탭 공격력: 레벨 누적 증가분 (캐시하여 사용) */

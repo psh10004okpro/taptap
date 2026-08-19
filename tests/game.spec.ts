@@ -19,6 +19,12 @@ declare global {
         canPrestige(): boolean; prestigeGain(): number; doPrestige(): boolean;
         addGold(n: number): void; addRelics(n: number): void;
         save(): void; isStale(): boolean;
+        goldMult(): number; activateGoldBoost(): void; isGoldBoostActive(): boolean;
+        resetSkillCooldowns(): void; anySkillOnCooldown(): boolean;
+        equipment: ({ slot: number; rarity: number; statPct: number; stage: number } | null)[];
+        daily: { date: string; counters: Record<string, number>; claimed: boolean[] };
+        questProgress(id: number): number; canClaimQuest(id: number): boolean;
+        claimQuest(id: number): boolean; ensureDaily(): void;
       };
     };
   }
@@ -229,7 +235,7 @@ test('환생 v2: 유물 화폐 지급 + 유물 강화는 환생 후 유지된다
 
 test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된다', async ({ page }) => {
   const errors = await setup(page);
-  await tapGame(page, 450, 746);                  // [랭킹] 탭
+  await tapGame(page, 644, 746);                  // [랭킹] 탭 (5탭 중 5번째)
   await page.waitForTimeout(400);
   await tapGame(page, 624, 794);                  // [점수 등록]
   await page.waitForTimeout(600);
@@ -247,7 +253,7 @@ test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된
 test('유물 탭 UI: 탭 전환 후 구매 버튼 클릭이 실제로 동작한다', async ({ page }) => {
   const errors = await setup(page);
   await page.evaluate(() => window.__taptap!.state.addRelics(42)); // 이벤트 발행 경로
-  await tapGame(page, 290, 746);                  // [유물] 탭
+  await tapGame(page, 360, 746);                  // [유물] 탭 (5탭 중 3번째)
   await page.waitForTimeout(300);
   await tapGame(page, 624, 864);                  // 첫 유물(파괴의 검) 구매 버튼
   await page.waitForTimeout(300);
@@ -312,6 +318,64 @@ test('멀티탭 방어: 다른 탭이 저장하면 이 탭은 stale 이 되어 �
   });
   expect(r.stale).toBe(true);
   await pageB.close();
+  expect(errors).toHaveLength(0);
+});
+
+test('광고 보상: 골드 부스트가 배율에 반영되고 쿨다운 리셋이 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const m0 = s.goldMult();
+    s.activateGoldBoost();
+    const m1 = s.goldMult();
+    // 쿨다운 리셋: 스킬 사용 후 리셋되는지
+    s.maxStage = 30;
+    s.tryActivateSkill(0);
+    const cdBefore = s.skillCooldownLeft(0);
+    s.resetSkillCooldowns();
+    const cdAfter = s.skillCooldownLeft(0);
+    return { m0, m1, boosted: s.isGoldBoostActive(), cdBefore, cdAfter };
+  });
+  expect(r.m1).toBeCloseTo(r.m0 * 2, 5);
+  expect(r.boosted).toBe(true);
+  expect(r.cdBefore).toBeGreaterThan(0);
+  expect(r.cdAfter).toBe(0);
+  expect(errors).toHaveLength(0);
+});
+
+test('장비: 장착 장비가 탭 데미지 배율에 반영된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1_000_000);
+    for (let i = 0; i < 20; i++) s.tryBuyTap();
+    const dmg0 = s.tapDamage();
+    s.equipment[0] = { slot: 0, rarity: 2, statPct: 100, stage: 10 }; // 무기 +100%
+    const dmg1 = s.tapDamage();
+    return { dmg0, dmg1 };
+  });
+  expect(r.dmg1).toBeGreaterThanOrEqual(Math.floor(r.dmg0 * 1.9)); // ~2배
+  expect(errors).toHaveLength(0);
+});
+
+test('일일 퀘스트: 카운터 누적 → 달성 → 보상 수령', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.ensureDaily();
+    // 스킬 3회 사용 퀘스트(id 2, relics 보상)를 강제 달성
+    s.maxStage = 30;
+    s.daily.counters.skillUses = 3;
+    const can = s.canClaimQuest(2);
+    const relics0 = s.relics;
+    const ok = s.claimQuest(2);
+    const again = s.claimQuest(2); // 중복 수령 불가
+    return { can, ok, again, gained: s.relics - relics0, prog: s.questProgress(2) };
+  });
+  expect(r.can).toBe(true);
+  expect(r.ok).toBe(true);
+  expect(r.again).toBe(false);
+  expect(r.gained).toBe(2);
   expect(errors).toHaveLength(0);
 });
 

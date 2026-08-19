@@ -6,13 +6,16 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, PANEL_Y, SKILL_BAR_Y, TAB_Y,
   HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE,
+  EQUIP_SLOTS, RARITIES, DAILY_QUESTS, EQUIP_DROP_CHANCE,
 } from '../config';
+import type { EquipItem } from '../config';
 import { GameState } from '../core/GameState';
+import { AdRewards } from '../core/AdRewards';
 import { Leaderboard, LbEntry } from '../core/Leaderboard';
 import { fmt, fmtDuration } from '../core/format';
 
 const FONT = 'Trebuchet MS, Malgun Gothic, sans-serif';
-const TAB_NAMES = ['영웅', '유물', '랭킹'] as const;
+const TAB_NAMES = ['영웅', '장비', '유물', '퀘스트', '랭킹'] as const;
 
 interface HeroRow {
   name: Phaser.GameObjects.Text;
@@ -68,6 +71,16 @@ export class UIScene extends Phaser.Scene {
   private rankStatus!: Phaser.GameObjects.Text;
   private rankLines: Phaser.GameObjects.Text[] = [];
 
+  private ads = new AdRewards();
+  private boostBtnText!: Phaser.GameObjects.Text;
+  private boostBtn!: Phaser.GameObjects.Image;
+  private cdBtn!: Phaser.GameObjects.Image;
+  private equipRows: { title: Phaser.GameObjects.Text; sub: Phaser.GameObjects.Text }[] = [];
+  private questRows: {
+    desc: Phaser.GameObjects.Text; prog: Phaser.GameObjects.Text;
+    btn: Phaser.GameObjects.Image; btnText: Phaser.GameObjects.Text;
+  }[] = [];
+
   constructor() { super('UI'); }
 
   create(): void {
@@ -78,6 +91,8 @@ export class UIScene extends Phaser.Scene {
     this.heroRows = [];
     this.artifactRows = [];
     this.rankLines = [];
+    this.equipRows = [];
+    this.questRows = [];
     this.skillSig = '';
     this.state = this.registry.get('state') as GameState;
     this.lb = new Leaderboard();
@@ -113,17 +128,41 @@ export class UIScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '19px', color: '#9fd8ff',
     }).setOrigin(0, 0.5);
 
-    this.stageText = this.add.text(GAME_WIDTH / 2, 38, '', {
-      fontFamily: FONT, fontSize: '30px', color: '#ffffff', fontStyle: 'bold',
+    this.stageText = this.add.text(GAME_WIDTH / 2, 34, '', {
+      fontFamily: FONT, fontSize: '28px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.progText = this.add.text(GAME_WIDTH / 2, 72, '', {
-      fontFamily: FONT, fontSize: '19px', color: '#c9b8e8',
+    this.progText = this.add.text(GAME_WIDTH / 2, 64, '', {
+      fontFamily: FONT, fontSize: '18px', color: '#c9b8e8',
     }).setOrigin(0.5);
 
-    // 보스 타이머 바
-    this.timerBg = this.add.image(GAME_WIDTH / 2, 112, 'hpbar-bg').setScale(1, 0.6).setVisible(false);
-    this.timerFill = this.add.image(GAME_WIDTH / 2 - 165, 112, 'timer-fill')
+    // 보스 타이머 바 (광고 버튼과 겹치지 않는 y)
+    this.timerBg = this.add.image(GAME_WIDTH / 2, 92, 'hpbar-bg').setScale(1, 0.6).setVisible(false);
+    this.timerFill = this.add.image(GAME_WIDTH / 2 - 165, 92, 'timer-fill')
       .setOrigin(0, 0.5).setVisible(false);
+
+    // 광고 보상: 골드 x2 부스트 / 스킬 쿨다운 초기화
+    this.boostBtn = this.add.image(288, 120, 'btn-ad');
+    this.boostBtnText = this.add.text(288, 120, 'AD 골드x2', {
+      fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.boostBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (this.state.isGoldBoostActive()) return;
+      this.showToast('광고 재생 중...');
+      this.ads.offer('gold-boost', () => this.state.activateGoldBoost(), (ok) => {
+        if (ok) this.showToast('30분간 골드 획득 2배!');
+      });
+    });
+    this.cdBtn = this.add.image(432, 120, 'btn-ad');
+    this.add.text(432, 120, 'AD 쿨다운', {
+      fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.cdBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (!this.state.anySkillOnCooldown()) return;
+      this.showToast('광고 재생 중...');
+      this.ads.offer('cooldowns', () => this.state.resetSkillCooldowns(), (ok) => {
+        if (ok) this.showToast('스킬 쿨다운이 초기화되었습니다!');
+      });
+    });
 
     // 환생 버튼
     const btn = this.add.image(0, 0, 'btn-prestige');
@@ -198,7 +237,9 @@ export class UIScene extends Phaser.Scene {
     // 전투 함성 등으로 DPS 표기가 시간에 따라 변하므로 함께 갱신
     this.dpsText.setText(`DPS ${fmt(this.state.totalDps())}`);
     // 스킬 활성 상태가 바뀐 순간(발동/만료) 패널 수치도 갱신 — 배율 표기 스테일 방지
-    const sig = SKILLS.map((s) => (st.isSkillActive(s.id) ? '1' : '0')).join('');
+    // (골드 부스트 활성 여부도 시그니처에 포함해 만료를 감지)
+    const sig = SKILLS.map((s) => (st.isSkillActive(s.id) ? '1' : '0')).join('')
+      + (st.isGoldBoostActive() ? 'B' : 'b') + Math.ceil(st.goldBoostLeft() / 60_000);
     if (sig !== this.skillSig) {
       this.skillSig = sig;
       this.refreshPanel();
@@ -224,12 +265,12 @@ export class UIScene extends Phaser.Scene {
   private buildPanel(): void {
     this.add.image(0, PANEL_Y - 24, 'panel').setOrigin(0, 0);
 
-    // 탭 버튼
+    // 탭 버튼 (5탭 x 132px + 9px 간격)
     TAB_NAMES.forEach((label, i) => {
-      const x = 130 + i * 160;
+      const x = 76 + i * 142;
       const img = this.add.image(x, TAB_Y, i === 0 ? 'tab-on' : 'tab-off');
       const txt = this.add.text(x, TAB_Y, label, {
-        fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
       img.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.setTab(i));
       this.tabButtons.push({ img, label: txt });
@@ -237,7 +278,9 @@ export class UIScene extends Phaser.Scene {
 
     this.tabContents = [
       this.buildHeroTab(),
+      this.buildEquipTab(),
       this.buildArtifactTab(),
+      this.buildQuestTab(),
       this.buildRankTab(),
     ];
   }
@@ -246,7 +289,65 @@ export class UIScene extends Phaser.Scene {
     this.tabButtons.forEach((t, k) => t.img.setTexture(k === i ? 'tab-on' : 'tab-off'));
     this.tabContents.forEach((c, k) => c.setVisible(k === i));
     this.refreshPanel(); // 탭 진입 시점 기준 최신 수치 표시
-    if (i === 2) this.loadRanking();
+    if (i === TAB_NAMES.length - 1) this.loadRanking();
+  }
+
+  // --- 장비 탭 --------------------------------------------------------------
+
+  private buildEquipTab(): Phaser.GameObjects.Container {
+    const c = this.add.container(0, 0).setVisible(false);
+    c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 40,
+      `보스 처치 시 ${Math.round(EQUIP_DROP_CHANCE * 100)}% 확률로 장비 드롭 · 상위 장비 자동 장착`, {
+        fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
+      }).setOrigin(0.5));
+
+    EQUIP_SLOTS.forEach((slot, i) => {
+      const y = PANEL_Y + 110 + i * 90;
+      c.add(this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6));
+      c.add(this.add.image(48, y, 'equip' + slot.id).setScale(1.25));
+      const title = this.add.text(94, y - 18, '', {
+        fontFamily: FONT, fontSize: '21px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const sub = this.add.text(94, y + 14, '', {
+        fontFamily: FONT, fontSize: '16px', color: '#c9b8e8',
+      }).setOrigin(0, 0.5);
+      c.add([title, sub]);
+      this.equipRows.push({ title, sub });
+    });
+    return c;
+  }
+
+  // --- 퀘스트 탭 ------------------------------------------------------------
+
+  private buildQuestTab(): Phaser.GameObjects.Container {
+    const c = this.add.container(0, 0).setVisible(false);
+    c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 40, '일일 퀘스트 — 매일 자정 초기화', {
+      fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
+    }).setOrigin(0.5));
+
+    DAILY_QUESTS.forEach((q, i) => {
+      const y = PANEL_Y + 110 + i * 90;
+      c.add(this.add.image(GAME_WIDTH / 2, y, 'row').setScale(1, 1.6));
+      const desc = this.add.text(40, y - 18, q.desc, {
+        fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const prog = this.add.text(40, y + 14, '', {
+        fontFamily: FONT, fontSize: '16px', color: '#c9b8e8',
+      }).setOrigin(0, 0.5);
+      const btn = this.add.image(GAME_WIDTH - 96, y, 'btn-buy');
+      const btnText = this.add.text(GAME_WIDTH - 96, y, '받기', {
+        fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0.5);
+      btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        if (this.state.claimQuest(q.id)) {
+          this.pop(btn);
+          this.showToast('퀘스트 보상을 받았습니다!');
+        }
+      });
+      c.add([desc, prog, btn, btnText]);
+      this.questRows.push({ desc, prog, btn, btnText });
+    });
+    return c;
   }
 
   private buildHeroTab(): Phaser.GameObjects.Container {
@@ -436,6 +537,17 @@ export class UIScene extends Phaser.Scene {
     this.state.on('stage', () => this.refreshStage());
     this.state.on('mode', () => this.refreshStage());
     this.state.on('prestige', () => this.refreshAll());
+    this.state.on('quest', () => this.refreshPanel());
+    this.state.on('drop', (...args: unknown[]) => {
+      const item = args[0] as EquipItem;
+      const equipped = args[1] as boolean;
+      const r = RARITIES[item.rarity];
+      const slot = EQUIP_SLOTS[item.slot];
+      this.showToast(equipped
+        ? `[${r.name}] ${slot.name} 획득! +${item.statPct}%`
+        : `[${r.name}] ${slot.name} 드롭 (기존이 더 좋음)`);
+      this.refreshPanel();
+    });
 
     this.game.events.on('boss-timer', this.onBossTimer, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -501,6 +613,46 @@ export class UIScene extends Phaser.Scene {
       row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : `유물 ${fmt(st.artifactCost(a.id))}`);
     });
 
+    // 장비 탭
+    EQUIP_SLOTS.forEach((slot, i) => {
+      const row = this.equipRows[i];
+      const item = st.equipment[slot.id];
+      const statName = slot.stat === 'tap' ? '탭 데미지' : slot.stat === 'dps' ? '영웅 DPS' : '골드 획득';
+      if (item) {
+        const r = RARITIES[item.rarity];
+        row.title.setText(`${slot.name} · ${r.name}`)
+          .setColor('#' + r.color.toString(16).padStart(6, '0'));
+        row.sub.setText(`${statName} +${item.statPct}%  (스테이지 ${item.stage} 획득)`);
+      } else {
+        row.title.setText(`${slot.name} · 없음`).setColor('#8a7f9e');
+        row.sub.setText(`${statName} 보너스 — 보스 처치로 획득`);
+      }
+    });
+
+    // 퀘스트 탭
+    st.ensureDaily();
+    DAILY_QUESTS.forEach((q, i) => {
+      const row = this.questRows[i];
+      const prog = st.questProgress(q.id);
+      const claimed = st.daily.claimed[q.id];
+      const rewardTxt = q.reward === 'gold' ? '골드 보상' : `유물 ${q.amount}개`;
+      row.prog.setText(claimed ? '완료!' : `${prog} / ${q.target} · ${rewardTxt}`);
+      row.btnText.setText(claimed ? '완료' : '받기');
+      this.setEnabled(row.btn, st.canClaimQuest(q.id));
+    });
+
+    // 광고 버튼 상태
+    if (st.isGoldBoostActive()) {
+      const min = Math.ceil(st.goldBoostLeft() / 60_000);
+      this.boostBtnText.setText(`x2 ${min}분`);
+      this.boostBtn.setAlpha(0.55);
+    } else {
+      this.boostBtnText.setText('AD 골드x2');
+      this.boostBtn.setAlpha(1);
+    }
+    const cdOk = st.anySkillOnCooldown();
+    this.cdBtn.setAlpha(cdOk ? 1 : 0.4);
+
     this.refreshAfford();
     this.refreshStage();
   }
@@ -551,7 +703,19 @@ export class UIScene extends Phaser.Scene {
     this.showPopup(
       '어서 오세요!',
       `${fmtDuration(sec)} 동안 자리를 비운 사이\n영웅들이 골드를 모았습니다.\n\n+${fmt(gold)} 골드`,
-      [{ label: '받기', on: () => { /* 이미 지급됨 */ } }],
+      [
+        {
+          label: 'AD 2배 받기',
+          on: () => {
+            this.showToast('광고 재생 중...');
+            // 기본 보상은 이미 지급됨 — 광고 시청 시 동일량 추가 지급
+            this.ads.offer('offline-x2', () => this.state.addGold(gold), (ok) => {
+              if (ok) this.showToast(`+${fmt(gold)} 골드 추가 지급!`);
+            });
+          },
+        },
+        { label: '받기', on: () => { /* 이미 지급됨 */ } },
+      ],
     );
   }
 
