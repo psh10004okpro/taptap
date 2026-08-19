@@ -3,18 +3,73 @@
 탭 타이탄 2 스타일의 **모바일 세로형 방치 탭 RPG**.
 Phaser 4 + TypeScript + Vite, 외부 아트 에셋 0개(전부 런타임 절차 생성).
 
-## 실행
+## 로컬에서 이어서 작업하기
 
 ```bash
+# 1) 클론 (작업 브랜치 그대로)
+git clone -b claude/2d-game-engine-research-ig32yw \
+  https://github.com/psh10004okpro/taptap.git
+cd taptap
+
+# 2) 의존성 (Node 22 이상 필요 — sim 이 네이티브 TS 실행을 쓴다)
 npm install
-npm run dev            # 개발 서버 (HMR). 폰에서 보려면 -- --host
-npm run build          # 타입체크 + 프로덕션 빌드 (dist/)
-npm test               # Playwright E2E 30종 (사전 npm run build 필요)
-npm run test:monkey    # 랜덤 입력 내구성 테스트 (시드 재현 가능)
-npm run sim:report     # 밸런스 시뮬 + HTML 리포트 (sim/out/report.html)
-# QA 패널: 실행 후 ?dev=1 붙이기 (docs/TESTING.md)
-npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
+npx playwright install chromium      # E2E 브라우저 (최초 1회)
+
+# 3) 개발 서버
+npm run dev                          # http://localhost:5173
+npm run dev -- --host                # 같은 와이파이의 폰에서 접속
 ```
+
+`main` 이 아니라 **`claude/2d-game-engine-research-ig32yw`** 브랜치가 최신입니다.
+
+### 자주 쓰는 명령
+
+```bash
+npm run build          # 타입체크 + 프로덕션 빌드 (dist/) — 커밋 전 필수
+npm test               # Playwright E2E 46종 (사전 npm run build 필요)
+npm run test:monkey    # 랜덤 입력 내구성 테스트 (시드 재현 가능)
+npm run sim            # 밸런스 시뮬 (곡선 수정 시 필수)
+npm run sim:report     # 시뮬 + HTML 리포트 (sim/out/report.html)
+npm run preview        # 프로덕션 빌드 미리보기 (localhost:4173)
+npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
+# QA 패널: 실행 후 URL 에 ?dev=1 붙이기 (docs/TESTING.md)
+```
+
+### 선택 설정
+
+**온라인 랭킹** — 없으면 로컬 랭킹으로 자동 폴백하므로 필수는 아니다.
+`.env.local` (gitignore 됨) 에:
+```
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+```
+서버 배포 절차는 `supabase/README.md`.
+
+**아트 생성** — 절차 생성 플레이스홀더를 실제 아트로 교체할 때.
+```bash
+pip install requests pillow
+export ELICE_API_KEY=<키>
+export ELICE_BASE_URL=https://mlapi.run/<endpoint-id>/v1
+python3 tools/art/generate.py     # 원본 생성 (재개 가능)
+python3 tools/art/process.py      # 후처리 → public/assets/ + manifest.json
+```
+자세한 규격은 `tools/art/README.md`. 에셋이 없으면 BootScene 이 절차 생성으로 폴백한다.
+
+### 개발 규칙
+
+`CLAUDE.md` 에 아키텍처 불변식·UI 문법·밸런스/BM 규칙이 정리돼 있다.
+수정 전에 한 번 읽을 것 (Phaser v3 API 금지, core/ 는 Phaser import 금지,
+좌표는 config.ts 상수, 곡선 변경 시 sim 필수 등).
+
+| 문서 | 내용 |
+|---|---|
+| `docs/TESTING.md` | E2E·QA 패널·몽키·시뮬 사용법, 주요 UI 좌표표 |
+| `docs/BALANCE.md` | 곡선 설계 근거, 벽 위치, 마나 미도입 사유 |
+| `docs/CONTENT_GAP.md` | 탭타이탄2 대비 콘텐츠 격차 |
+| `docs/MONETIZATION.md` | BM 원칙, 요정 광고, 확률 공시 |
+| `docs/ANALYTICS.md` | 분석 이벤트 스키마 |
+| `docs/ANDROID.md` | Capacitor 안드로이드 빌드 |
+| `docs/RAIDS.md` | 레이드/카드 설계 (미구현 — 서버 확보 후) |
 
 ## 게임 구조
 
@@ -23,18 +78,18 @@ npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
 | 전투 | 탭 데미지 + 영웅 DPS(10Hz 틱), 크리티컬(기본 5% x8, 유물/펫/영웅으로 강화) |
 | 스테이지 | 일반 9마리 → 보스(기본 30초 제한). 실패 시 파밍 모드 + "보스 도전" |
 | 스킬 6종 | 화염검·전투 함성·황금손·분신술·천상의 일격(즉발 40배)·필살 강타(크리+25%p) |
-| 성장 | 탭 공격력, 영웅 24명(25레벨 DPS x2 + 20레벨 패시브 해금, 3페이지) |
+| 성장 | 탭 공격력, 영웅 24명(25레벨 DPS x2 + 20/100/200레벨 패시브 3중, 3페이지) |
 | 환생 | 스테이지 25+에서 유물 획득(화폐). 골드·영웅·스테이지 초기화, 유물 강화는 유지 |
-| 유물 상점 | 유물 소비 영구 강화 20종 (효과 타입 기반, 데이터 주도 집계) |
-| 스킬트리 | 3계열(기사/군주/연금술사) 12노드, SP=스테이지 마일스톤+환생, 유물로 리스펙 |
-| 펫 | 6종 — 보스 알 드롭(6%)으로 획득/성장, 영구 보너스 |
+| 유물 상점 | 유물 소비 영구 강화 40종 (효과 타입 기반, 데이터 주도 집계) |
+| 스킬트리 | 3계열(기사/군주/연금술사) 18노드, SP=스테이지 마일스톤+환생, 유물로 리스펙 |
+| 펫 | 12종 — 보스 알 드롭(6%)으로 획득/성장, 영구 보너스 |
 | 장비 | 보스 처치 18% 드롭, 3슬롯(무기/갑옷/장신구) x 4등급, 상위 자동 장착 |
-| 일일 퀘스트 | 처치/보스/스킬 3종, 매일 리셋, 골드·유물 보상 |
-| 업적 | 평생 통계 기반 8종, 유물 보상 |
+| 일일 퀘스트 | 6종 풀에서 매일 3종 로테이션(날짜 시드), 골드·유물 보상 |
+| 업적 | 평생 통계 기반 20종, 유물 보상 |
 | 주말 토너먼트 | 어비셜 방식 제로베이스 경쟁(토~일), 스테이지 10당 유물 1 |
 | 클랜 보스 | 주간 보스, 공격권 3회, 처치 시 유물 15 (온라인 클랜은 Supabase 연동 시) |
 | 시즌 | 4주 단위 랭킹 리셋 + 시즌 종료 보상 |
-| 광고 보상 슬롯 | 골드 x2(30분)·스킬 쿨다운 리셋·오프라인 2배 — Mock 광고, SDK 는 Provider 교체만 |
+| 광고 보상 | 요정이 전투 화면을 가로지르고 탭하면 제안 — 골드 x2(30분)/쿨다운 리셋/오프라인 2배 |
 | 랭킹 | Supabase 온라인 랭킹(서버 검증) 또는 로컬 모드 자동 폴백 |
 | 상점/BM | 보석 재화, 팩 4종(Mock/실결제 Provider 교체), 소비 싱크 4종, VIP 티어, 확률 공시 |
 | 저장 | localStorage 자동 저장(5초/백그라운드 전환), 오프라인 보상(DPS x 40%, 최대 4시간) |
