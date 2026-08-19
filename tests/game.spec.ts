@@ -44,6 +44,12 @@ declare global {
         attacksLeft(s: unknown): number;
         attack(s: unknown): { damage: number; killed: boolean; hpLeft: number } | null;
       };
+      dev: {
+        applyPreset(s: unknown, name: string): void;
+        snapshot(s: unknown): Record<string, string | number>;
+        validate(s: unknown): string[];
+        exportSave(s: unknown): string;
+      };
     };
   }
 }
@@ -661,6 +667,44 @@ test('스킬트리: 스킬 강화·쿨다운 감소·리스펙이 동작한다',
   expect(r.relicsCost).toBe(10);
   expect(r.spentAfter).toBe(0);
   expect(errors).toHaveLength(0);
+});
+
+test('QA 툴: 데브 패널(?dev=1) 로드·프리셋·불변식 검증이 동작한다', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.goto('/?dev=1');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  await page.waitForSelector('#qa-toggle', { timeout: 10_000 });
+
+  // 패널 열기 → 프리셋 '중반' 적용 (DOM 버튼 실클릭)
+  await page.click('#qa-toggle');
+  await page.click('#qa-panel button:has-text("중반")');
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    return {
+      stage: s.stage,
+      relics: s.relics,
+      invariants: window.__taptap!.dev.validate(s as never),
+      snapshotHasDps: 'dps' in window.__taptap!.dev.snapshot(s as never),
+    };
+  });
+  expect(r.stage).toBe(55);
+  expect(r.relics).toBe(30);
+  expect(r.invariants).toHaveLength(0);
+  expect(r.snapshotHasDps).toBe(true);
+  await page.screenshot({ path: 'screenshots/17-devpanel.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('QA 툴: 일반 모드(?dev 없음)에서는 패널이 로드되지 않는다', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  await page.waitForTimeout(500);
+  expect(await page.locator('#qa-toggle').count()).toBe(0);
 });
 
 test('저장/복원: 리로드 후 진행 상황이 유지된다', async ({ page }) => {

@@ -34,3 +34,8 @@
 - 광고 보상은 `AdRewards.offer` 경유만 (ad_offer/ad_reward 퍼널 자동 계측).
   실제 SDK 연동은 `AdProvider` 구현체 교체로만 한다.
 - 장비 statPct 상한 300% (인플레 캡). 일일 퀘스트 골드 보상은 goldMult 미적용 (부스트 악용 방지).
+
+## 테스트 툴킷 (docs/TESTING.md)
+- QA 치트는 `core/DevTools.ts` 에만 추가 — 패널(?dev=1)과 E2E 가 같은 코드를 쓴다.
+- 상태 불변식은 `DevTools.validate()` 에 누적한다. 몽키(`npm run test:monkey`)가 검사.
+- `window.__taptap` 훅 시그니처 변경 시 tests/game.spec.ts 의 선언도 갱신.

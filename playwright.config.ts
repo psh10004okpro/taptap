@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  grepInvert: process.env.MONKEY ? undefined : /@monkey/, // 몽키는 npm run test:monkey 로만
   timeout: 90_000,
   retries: 0,
   reporter: [['list']],

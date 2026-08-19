@@ -12,7 +12,9 @@
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
     "sim": "node sim/run.ts",
-    "sim:tune": "node sim/tune.ts"
+    "sim:tune": "node sim/tune.ts",
+    "test:monkey": "MONKEY=1 playwright test --grep @monkey",
+    "sim:report": "node sim/run.ts 3 && node sim/report.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

@@ -5,6 +5,7 @@ import { Analytics } from './core/Analytics.ts';
 import * as Tournament from './core/Tournament.ts';
 import * as Season from './core/Season.ts';
 import * as ClanBoss from './core/ClanBoss.ts';
+import * as DevTools from './core/DevTools.ts';
 import { BootScene } from './scenes/BootScene.ts';
 import { GameScene } from './scenes/GameScene.ts';
 import { UIScene } from './scenes/UIScene.ts';
@@ -14,6 +15,7 @@ declare global {
     __taptap?: {
       game: Phaser.Game; state: GameState;
       tourney: typeof Tournament; season: typeof Season; clanBoss: typeof ClanBoss;
+      dev: typeof DevTools;
     };
   }
 }
@@ -92,7 +94,12 @@ function boot(): void {
   });
 
   // E2E 테스트/디버깅 훅
-  window.__taptap = { game, state, tourney: Tournament, season: Season, clanBoss: ClanBoss };
+  window.__taptap = { game, state, tourney: Tournament, season: Season, clanBoss: ClanBoss, dev: DevTools };
+
+  // QA 패널: ?dev=1 일 때만 (동적 import — 일반 플레이 경로엔 미로드)
+  if (new URLSearchParams(location.search).get('dev') === '1') {
+    import('./devpanel.ts').then((m) => m.mountDevPanel(state));
+  }
 }
 
 boot();

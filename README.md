@@ -9,7 +9,10 @@ Phaser 4 + TypeScript + Vite, 외부 아트 에셋 0개(전부 런타임 절차 
 npm install
 npm run dev            # 개발 서버 (HMR). 폰에서 보려면 -- --host
 npm run build          # 타입체크 + 프로덕션 빌드 (dist/)
-npm test               # Playwright E2E 11종 (사전 npm run build 필요)
+npm test               # Playwright E2E 30종 (사전 npm run build 필요)
+npm run test:monkey    # 랜덤 입력 내구성 테스트 (시드 재현 가능)
+npm run sim:report     # 밸런스 시뮬 + HTML 리포트 (sim/out/report.html)
+# QA 패널: 실행 후 ?dev=1 붙이기 (docs/TESTING.md)
 npm run android:sync   # 안드로이드 빌드 동기화 (docs/ANDROID.md)
 ```
 
