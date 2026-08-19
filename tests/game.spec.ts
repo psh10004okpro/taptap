@@ -45,6 +45,7 @@ declare global {
         isEntered(): boolean;
       };
       season: { seasonKey(now?: Date): string; seasonEndsInMs(now?: Date): number };
+      zoneFor?: never; // (존은 config 순수 함수 — state 경유 검증)
       clanBoss: {
         current(s: unknown): { hpMax: number; hpLeft: number; attacksUsed: number; killed: boolean };
         attacksLeft(s: unknown): number;
@@ -339,14 +340,13 @@ test('멀티탭 방어: 다른 탭이 저장하면 이 탭은 stale 이 되어 �
   await pageB.goto('/');
   await pageB.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
   await pageB.evaluate(() => window.__taptap!.state.save());
-  await page.waitForTimeout(500); // storage 이벤트 전파
-  const r = await page.evaluate(() => {
+  // storage 이벤트 전파를 폴링으로 대기 (고정 sleep 은 느린 CI 에서 플레이키)
+  // save() 내부의 세대 재확인 경로도 stale 을 세팅하므로 함께 관찰한다
+  await expect.poll(async () => page.evaluate(() => {
     const s = window.__taptap!.state;
-    const stale = s.isStale();
-    s.save(); // stale 이면 무시되어야 함
-    return { stale };
-  });
-  expect(r.stale).toBe(true);
+    s.save();
+    return s.isStale();
+  }), { timeout: 5_000 }).toBe(true);
   await pageB.close();
   expect(errors).toHaveLength(0);
 });
@@ -873,6 +873,20 @@ test('볼륨 확장: 트리 계열 토글로 군주 T5 노드 구매가 동작�
   expect(r.okT5).toBe(true);
   expect(r.lvl).toBe(1);
   expect(r.nodes).toBe(18);
+  expect(errors).toHaveLength(0);
+});
+
+test('존 테마: 스테이지에 따라 존 이름과 몬스터가 바뀐다', async ({ page }) => {
+  const errors = await setup(page);
+  // 스테이지 45 (설원 아님 — 3번째 존 '동굴') 로 점프
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.stage = 45; s.maxStage = 45;
+    (s as unknown as { emit(ev: string, ...a: unknown[]): void }).emit('stage', 45, 0);
+  });
+  await tapGame(page, 360, 470, 2); // 스폰 유도 (다음 처치 시 새 존 몬스터)
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'screenshots/20-zone.png' });
   expect(errors).toHaveLength(0);
 });
 

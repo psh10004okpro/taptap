@@ -5,7 +5,7 @@
 import Phaser from 'phaser';
 import {
   COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
-  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, MONSTER_NAMES, BOSS_NAMES, monsterHp,
+  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
@@ -29,6 +29,7 @@ export class GameScene extends Phaser.Scene {
   private bossLimit = 1;   // 이번 보스전의 제한시간 (유물 반영, 스폰 시 고정)
   private cloneTick = 0;   // 분신술 자동 탭 타이밍
   private baseScale = 1;   // 현재 몬스터의 기준 스케일 (반동 트윈 누적 방지)
+  private zoneOverlay!: Phaser.GameObjects.Rectangle;
   private spawnTimer: Phaser.Time.TimerEvent | null = null; // 스폰 예약 단일화
 
   private floatPool: Phaser.GameObjects.Text[] = [];
@@ -43,6 +44,8 @@ export class GameScene extends Phaser.Scene {
     this.state = this.registry.get('state') as GameState;
 
     this.add.image(0, 0, 'bg').setOrigin(0, 0);
+    // 존 테마 오버레이 (스폰 시 존 색으로 갱신)
+    this.zoneOverlay = this.add.rectangle(0, 0, 720, PANEL_Y, 0x000000, 0.18).setOrigin(0, 0);
 
     this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, 592, 190, 40, 0x000000, 0.35);
     this.monster = this.add.image(COMBAT_CENTER.x, COMBAT_CENTER.y, 'monster0').setOrigin(0.5, 0.78);
@@ -124,15 +127,17 @@ export class GameScene extends Phaser.Scene {
     this.hp = this.hpMax;
     this.dead = false;
 
+    const zone = zoneFor(st.stage);
+    this.zoneOverlay.setFillStyle(zone.tint, 0.22);
     if (this.isBoss) {
       this.monster.setTexture('boss');
-      this.nameText.setText(BOSS_NAMES[(st.stage - 1) % BOSS_NAMES.length]).setColor('#ff9c9c');
+      this.nameText.setText(zone.bossName).setColor('#ff9c9c');
       this.bossLimit = st.bossTimeLimit();
       this.bossDeadline = this.time.now + this.bossLimit;
     } else {
-      const idx = (st.stage * 7 + st.kills * 3) % 6;
-      this.monster.setTexture('monster' + idx);
-      this.nameText.setText(MONSTER_NAMES[(st.stage - 1) % MONSTER_NAMES.length]).setColor('#ffffff');
+      const slot = (st.stage * 7 + st.kills * 3) % zone.monsters.length;
+      this.monster.setTexture('monster' + zone.monsters[slot]);
+      this.nameText.setText(zone.monsterNames[slot]).setColor('#ffffff');
       this.bossDeadline = 0;
       this.game.events.emit('boss-timer', -1);
     }

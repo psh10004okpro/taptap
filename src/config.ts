@@ -473,14 +473,87 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 
 export const TOURNEY_REWARD_PER_10_STAGES = 1; // 종료 시 스테이지 10당 유물 1
 
-export const MONSTER_NAMES = [
-  '슬라임', '버섯돌이', '가시두꺼비', '동굴박쥐', '고블린',
-  '숲도깨비', '진흙괴물', '얼음정령', '모래전갈', '그림자늑대',
+// --- 스테이지 존 (20스테이지 단위 테마 — 배경 틴트/몬스터 조합/보스) ----------
+
+export const STAGES_PER_ZONE = 20;
+
+export interface ZoneDef {
+  id: number;
+  name: string;
+  /** 전투 배경 위에 얹는 존 색 오버레이 */
+  tint: number;
+  /** 이 존에서 등장하는 몬스터 텍스처 id 6종 (0~11) */
+  monsters: number[];
+  monsterNames: string[];
+  bossName: string;
+}
+
+export const ZONES: ZoneDef[] = [
+  {
+    id: 0, name: '초원', tint: 0x3f7d3a,
+    monsters: [0, 1, 2, 3, 4, 5],
+    monsterNames: ['슬라임', '버섯돌이', '들쥐돌이', '풀뭉치', '꿀벌레', '아기멧돼지'],
+    bossName: '왕슬라임',
+  },
+  {
+    id: 1, name: '어둔 숲', tint: 0x1e4d2b,
+    monsters: [2, 3, 6, 7, 0, 5],
+    monsterNames: ['숲도깨비', '가시두꺼비', '독버섯', '거미지기', '올빼미괴', '넝쿨정령'],
+    bossName: '고목의 정령왕',
+  },
+  {
+    id: 2, name: '동굴', tint: 0x3a4550,
+    monsters: [4, 6, 8, 9, 1, 7],
+    monsterNames: ['동굴박쥐', '돌게', '광석벌레', '동굴지네', '어둠쥐', '수정괴'],
+    bossName: '거대 골렘',
+  },
+  {
+    id: 3, name: '사막', tint: 0x8a6d2f,
+    monsters: [3, 5, 8, 10, 2, 11],
+    monsterNames: ['모래전갈', '선인장맨', '모래벌레', '미라지', '사막여우괴', '카라반도적'],
+    bossName: '모래폭풍의 군주',
+  },
+  {
+    id: 4, name: '늪지대', tint: 0x2e4a33,
+    monsters: [0, 6, 7, 9, 10, 1],
+    monsterNames: ['진흙괴물', '독개구리', '늪지렁이', '안개혼', '악어아귀', '수초괴'],
+    bossName: '늪의 히드라',
+  },
+  {
+    id: 5, name: '설원', tint: 0x5a7d9e,
+    monsters: [1, 4, 8, 11, 5, 9],
+    monsterNames: ['얼음정령', '눈토끼괴', '서리늑대', '고드름귀신', '설인아이', '얼음거미'],
+    bossName: '서리 거인',
+  },
+  {
+    id: 6, name: '화산', tint: 0x7d2c1e,
+    monsters: [2, 5, 9, 10, 3, 8],
+    monsterNames: ['용암도롱뇽', '화염박쥐', '재투성이', '마그마괴', '불꽃정령', '숯덩이악귀'],
+    bossName: '화염 오우거',
+  },
+  {
+    id: 7, name: '고대 폐허', tint: 0x4d3a63,
+    monsters: [6, 7, 10, 11, 4, 0],
+    monsterNames: ['석상병사', '유적거미', '망령', '지킴이골렘', '저주항아리', '해골정찰병'],
+    bossName: '폐허의 수호자',
+  },
+  {
+    id: 8, name: '천공섬', tint: 0x2f5d8a,
+    monsters: [1, 3, 5, 11, 8, 6],
+    monsterNames: ['바람정령', '구름양', '뇌운새', '하늘해파리', '풍선괴', '번개도마뱀'],
+    bossName: '폭풍의 로크',
+  },
+  {
+    id: 9, name: '심연', tint: 0x1b1b3a,
+    monsters: [7, 9, 10, 11, 2, 4],
+    monsterNames: ['그림자늑대', '심연시선', '공허벌레', '악몽덩이', '어둠촉수', '별삼킨자'],
+    bossName: '심연의 드래곤',
+  },
 ];
 
-export const BOSS_NAMES = [
-  '왕슬라임', '거대 골렘', '화염 오우거', '서리 거인', '심연의 드래곤',
-];
+export function zoneFor(stage: number): ZoneDef {
+  return ZONES[Math.floor((stage - 1) / STAGES_PER_ZONE) % ZONES.length];
+}
 
 // --- 밸런스 곡선 -----------------------------------------------------------
 

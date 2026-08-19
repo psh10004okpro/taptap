@@ -10,7 +10,7 @@ import {
 } from '../config.ts';
 import type { EquipItem } from '../config.ts';
 import {
-  ACHIEVEMENTS, PETS, SKILL_TREE, TREE_BRANCH_NAMES, TREE_RESPEC_COST, treeNodeCost,
+  ACHIEVEMENTS, PETS, SKILL_TREE, TREE_BRANCH_NAMES, TREE_RESPEC_COST, treeNodeCost, zoneFor,
   GEM_PACKS, GEM_SINKS, EQUIP_BOX_RATES, RARITIES as RARITY_DEFS, VIP_TIERS,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
@@ -1045,7 +1045,10 @@ export class UIScene extends Phaser.Scene {
   private refreshStage(): void {
     const st = this.state;
     const tourney = this.registry.get('tournamentMode') === true;
-    this.stageText.setText(tourney ? `토너먼트 · 스테이지 ${st.stage}` : `스테이지 ${st.stage}`)
+    const zone = zoneFor(st.stage);
+    this.stageText.setText(tourney
+      ? `토너먼트 · ${zone.name} ${st.stage}`
+      : `${zone.name} · 스테이지 ${st.stage}`)
       .setColor(tourney ? '#f7dc6f' : '#ffffff');
     if (st.mode === 'boss') {
       this.progText.setText('보스 전투 중!').setColor('#ff9c9c');

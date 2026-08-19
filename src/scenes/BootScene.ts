@@ -4,7 +4,10 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config.ts';
 
-const MONSTER_COLORS = [0x6fcf5a, 0x5aa8e8, 0xd86fd4, 0xe8a05a, 0x8a7de8, 0xe85a72];
+const MONSTER_COLORS = [
+  0x6fcf5a, 0x5aa8e8, 0xd86fd4, 0xe8a05a, 0x8a7de8, 0xe85a72,
+  0x58d0c0, 0xc9b458, 0x9e6b4a, 0x7a8a99, 0xd2527f, 0x86c232,
+];
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
@@ -69,15 +72,20 @@ export class BootScene extends Phaser.Scene {
       // 입
       g.fillStyle(0x22182f, 1);
       g.fillEllipse(w / 2 + 2, h - 46, 26, 12);
-      // 변형 포인트: 뿔/더듬이
-      if (i % 3 === 1) {
+      // 변형 포인트: 뿔 / 더듬이 / 등가시
+      if (i % 4 === 1) {
         g.fillStyle(dark, 1);
         g.fillTriangle(w / 2 - 52, h - 118, w / 2 - 30, h - 160, w / 2 - 14, h - 118);
         g.fillTriangle(w / 2 + 14, h - 118, w / 2 + 30, h - 160, w / 2 + 52, h - 118);
-      } else if (i % 3 === 2) {
+      } else if (i % 4 === 2) {
         g.fillStyle(dark, 1);
         g.fillCircle(w / 2, h - 152, 12);
         g.fillRect(w / 2 - 3, h - 150, 6, 30);
+      } else if (i % 4 === 3) {
+        g.fillStyle(dark, 1);
+        g.fillTriangle(w / 2 - 60, h - 100, w / 2 - 44, h - 148, w / 2 - 24, h - 108);
+        g.fillTriangle(w / 2 - 18, h - 112, w / 2, h - 162, w / 2 + 18, h - 112);
+        g.fillTriangle(w / 2 + 24, h - 108, w / 2 + 44, h - 148, w / 2 + 60, h - 100);
       }
       g.generateTexture('monster' + i, w, h);
       g.destroy();
