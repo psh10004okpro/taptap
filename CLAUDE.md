@@ -33,7 +33,9 @@
   UIScene 이 `registry.uiCollapsed` + `game.events('ui-collapse')` 로 알리고,
   GameScene 이 몬스터/단상/탭 존을 아래로 내려 넓힌다.
 - 배경 텍스처는 **화면 전체 높이(720x1280)** — 접으면 아래쪽 지면이 그대로 드러난다.
-  발밑 단상은 배경이 아니라 GameScene 이 그린다 (접기 시 함께 내려가야 하므로).
+  발밑 그림자는 배경이 아니라 GameScene 이 그린다 (접기 시 함께 내려가야 하므로).
+  y 는 고정 상수가 아니라 스프라이트 바닥선에서 계산한다 (`placeGroundShadow`) —
+  몬스터(200x170)와 보스(280x250)의 발 위치가 다르기 때문. 원점은 `MONSTER_ORIGIN_Y`.
 
 ## 밸런스 수정
 - 곡선은 전부 `src/config.ts` 의 함수(`monsterHp`, `tapCost`, `heroDps`...). UI/Scene 에 숫자 하드코딩 금지.

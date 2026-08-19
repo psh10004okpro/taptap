@@ -6,18 +6,32 @@ API 키는 절대 커밋하지 않는다 — 환경변수로만 전달.
 ## 사용법
 
 ```bash
-pip install requests pillow
+pip install requests pillow          # Python 3.9 이상
 
 export ELICE_API_KEY=<Serverless API Key>
 export ELICE_BASE_URL=https://mlapi.run/<endpoint-id>/v1
 
-# 1) 생성 (77종, 원본은 tools/art/raw/ — 이미 있으면 건너뜀, 재개 가능)
+# 1) 생성 (90종, 원본은 tools/art/raw/ — 이미 있으면 건너뜀, 재개 가능)
 python3 tools/art/generate.py            # 전체
 python3 tools/art/generate.py bg- boss   # 키 프리픽스 필터
+ART_WORKERS=6 python3 tools/art/generate.py   # 동시 요청 수 (기본 4)
 
 # 2) 후처리 → public/assets/ + manifest.json 갱신
 python3 tools/art/process.py
+
+# 3) 검수: 90종을 실제 게임 크기로 한 장에 모아 본다
+python3 tools/art/contact.py             # tools/art/contact.png
 ```
+
+## 컨셉 시안 (선택 단계)
+
+```bash
+python3 tools/art/concepts.py            # 컨셉 4종 x [배경/몬스터/보스/영웅]
+python3 tools/art/concepts.py dark pixel # 일부만
+```
+`tools/art/concepts/<slug>/` 에 게임 규격 PNG 와 **실제 좌표로 합성한 목업**
+(펼침/보스/접힘)을, `concepts/index.html` 에 비교 시트를 만든다.
+**확정 컨셉: 다크 판타지(`dark`)** — `generate.py` 의 STYLE 이 이 문구다.
 
 ## 에셋 규격 (BootScene 절차 텍스처와 1:1)
 
@@ -30,6 +44,8 @@ python3 tools/art/process.py
 | `skill0..5` | 6 | 76×76 | 원형 마스크 |
 | `artifact0..19` | 20 | 44×44 | 트림 + 중앙 (투명) |
 | `equip0..2` | 3 | 44×44 | 트림 + 중앙 (투명) |
+| `pet0..11` | 12 | 52×52 | 원형 마스크 |
+| `fairy` | 1 | 48×48 | 트림 + 중앙 (투명) |
 | `coin` | 1 | 28×28 | 트림 + 중앙 (투명) |
 
 ## 동작 방식
@@ -46,4 +62,13 @@ python3 tools/art/process.py
 
 - 프롬프트의 STYLE 상수가 전체 룩을 고정한다 — 부분 재생성 시 스타일이
   섞이지 않도록 한 번 정한 STYLE 은 유지할 것.
+- **프롬프트에 "transparent background" 를 쓰지 말 것.** 이 API 는
+  `background=transparent` 를 거부하고(400), 프롬프트로 요구하면 체커보드 무늬를
+  그려 넣는다. 평평한 회색 배경으로 뽑고 process.py 의 chroma key 로 잘라낸다.
+- 배경은 몬스터가 서는 **y=470/1280(37%) 위로 지평선**이 와야 발이 땅에 닿는다
+  (BG_SUFFIX 가 "upper third" 를 요구하는 이유).
+- 배경만 **jpg** 로 저장한다 (알파 불필요). png 로 두면 10 장에 20MB 라 첫 로딩이 막힌다.
+  manifest 의 `files` 가 png 가 아닌 키의 실제 파일명을 담고 BootScene 이 그걸 읽는다.
+- 최종 표시 크기가 작은 것(영웅 42px, 펫 52px)은 **얼굴/실루엣이 밝고 색이 뚜렷해야**
+  목록에서 서로 구분된다 — 어두운 초상은 42px 에서 전부 같은 검은 원이 된다.
 - UI 텍스처(패널/버튼/탭/바)는 의도적으로 절차 생성 유지 (일관성/용량).

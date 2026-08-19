@@ -5,6 +5,8 @@
 
 규격은 BootScene 절차 텍스처와 1:1 로 맞춘다 (씬 코드는 크기 무수정).
 """
+from __future__ import annotations  # 3.9 호환 (X | None 어노테이션)
+
 import json
 import os
 import sys
@@ -22,10 +24,12 @@ SPECS: list[tuple[str, str, int, int]] = [
     ("monster", "sprite", 200, 170),
     ("boss", "sprite", 280, 250),
     ("hero", "circle", 42, 42),
+    ("pet", "circle", 52, 52),
     ("skill", "circle", 76, 76),
     ("artifact", "icon", 44, 44),
     ("equip", "icon", 44, 44),
     ("coin", "icon", 28, 28),
+    ("fairy", "icon", 48, 48),
 ]
 
 
@@ -152,22 +156,42 @@ def main() -> None:
         kind, w, h = spec
         img = Image.open(os.path.join(RAW, f))
         if kind == "bg":
+            # 배경은 알파가 필요 없다 — jpg 로 저장해 용량을 1/10 로 줄인다
+            # (png 2MB x 10 장이면 첫 로딩만 20MB — 모바일에서 못 쓴다)
             out = crop_resize(img, w, h)
-        elif kind == "sprite":
+            out.convert("RGB").save(os.path.join(OUT, key + ".jpg"),
+                                    "JPEG", quality=82, optimize=True, progressive=True)
+            stale = os.path.join(OUT, key + ".png")
+            if os.path.exists(stale):
+                os.remove(stale)
+            n += 1
+            print(f"{key}: {kind} {w}x{h} (jpg)")
+            continue
+        if kind == "sprite":
             out = fit_bottom(img, w, h)
         elif kind == "circle":
             out = circle_crop(img, w, h)
         else:
             out = fit_center(img, w, h)
-        out.save(os.path.join(OUT, f), optimize=True)
+        out.save(os.path.join(OUT, key + ".png"), optimize=True)
         n += 1
         print(f"{key}: {kind} {w}x{h}")
 
-    # manifest.json 갱신 — BootScene 이 로드할 키의 단일 출처
-    keys = sorted(f[:-4] for f in os.listdir(OUT) if f.endswith(".png"))
+    # manifest.json 갱신 — BootScene 이 로드할 키의 단일 출처.
+    # files 에는 png 가 아닌 키만 적는다 (BootScene 기본값이 <key>.png).
+    files = {}
+    keys = []
+    for fn in sorted(os.listdir(OUT)):
+        stem, ext = os.path.splitext(fn)
+        if ext not in (".png", ".jpg"):
+            continue
+        keys.append(stem)
+        if ext != ".png":
+            files[stem] = fn
+    keys.sort()
     with open(os.path.join(OUT, "manifest.json"), "w") as mf:
-        json.dump({"keys": keys}, mf, ensure_ascii=False, indent=0)
-    print(f"done: {n} -> {OUT} (manifest: {len(keys)} keys)")
+        json.dump({"keys": keys, "files": files}, mf, ensure_ascii=False, indent=0)
+    print(f"done: {n} -> {OUT} (manifest: {len(keys)} keys, {len(files)} non-png)")
 
 
 if __name__ == "__main__":

@@ -33,10 +33,10 @@ export const COLLAPSED = {
   combatBottom: 1104,  // 전투 탭 존 하한 (스킬바 위)
   monsterY: 696,       // 몬스터 중심 y
   monsterScale: 1.65,  // 몬스터/단상 배율
-  groundY: 891,        // 발밑 단상 중심 y
 };
-// 펼침 상태의 발밑 단상 y (배경이 아니라 GameScene 이 그린다)
-export const GROUND_Y = 588;
+// 몬스터 스프라이트 원점 y. 발밑 그림자는 이 값과 스프라이트 높이에서 계산한다
+// (고정 y 로 두면 크기가 다른 보스에서 그림자가 발과 어긋난다).
+export const MONSTER_ORIGIN_Y = 0.78;
 
 export const MONSTERS_PER_STAGE = 10; // 9마리 + 보스
 export const BOSS_TIME_LIMIT = 30_000; // ms (유물로 연장 가능)

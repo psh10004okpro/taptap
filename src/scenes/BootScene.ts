@@ -19,10 +19,19 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    const man = this.cache.json.get('asset-manifest') as { keys?: string[] } | undefined;
+    const man = this.cache.json.get('asset-manifest') as
+      { keys?: string[]; files?: Record<string, string> } | undefined;
     const keys = (man?.keys ?? []).filter((k) => /^[\w-]+$/.test(k));
+    // files 는 확장자가 png 가 아닌 키만 담는다 (배경은 알파가 없어 jpg — 용량 1/10).
+    const files = man?.files ?? {};
+    // 어떤 키가 생성 아트인지 UI 가 알아야 한다 (절차 텍스처와 이름이 겹치므로
+    // textures.exists() 로는 구분되지 않는다 — 예: 영웅 초상 위 이니셜 표기).
+    this.registry.set('generatedArt', keys);
     if (keys.length > 0) {
-      keys.forEach((k) => this.load.image(k, 'assets/' + k + '.png'));
+      keys.forEach((k) => {
+        const f = /^[\w-]+\.(png|jpg|webp)$/.test(files[k] ?? '') ? files[k] : k + '.png';
+        this.load.image(k, 'assets/' + f);
+      });
       this.load.once('complete', () => this.buildAndStart());
       this.load.start();
     } else {
@@ -36,6 +45,7 @@ export class BootScene extends Phaser.Scene {
     this.makeMonsters();
     this.makeBoss();
     this.makeCoin();
+    this.makeGroundShadow();
     this.makeUiTextures();
     this.scene.start('Game');
     this.scene.launch('UI');
@@ -163,6 +173,24 @@ export class BootScene extends Phaser.Scene {
     g.destroy();
   }
 
+  /**
+   * 발밑 접지 그림자 — 가장자리가 부드러운 타원.
+   * 단색 Ellipse 는 생성 배경(실사풍 지면) 위에서 판때기처럼 떠 보인다.
+   * 동심원을 겹쳐 알파 그라데이션을 만든다 (텍스처는 이 씬에서만 생성).
+   */
+  private makeGroundShadow(): void {
+    if (!this.missing('ground-shadow')) return;
+    const w = 460, h = 120, steps = 24;
+    const g = this.add.graphics();
+    for (let i = steps; i > 0; i--) {
+      const t = i / steps;              // 1 → 바깥, 0 → 중심
+      g.fillStyle(0x05030c, 0.05 * (1 - t) + 0.02);
+      g.fillEllipse(w / 2, h / 2, w * t, h * t);
+    }
+    g.generateTexture('ground-shadow', w, h);
+    g.destroy();
+  }
+
   private makeUiTextures(): void {
     // 하단 패널
     let g = this.add.graphics();
@@ -232,7 +260,8 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture('card-lg', 660, 580);
     g.destroy();
 
-    // 요정 (보상형 광고 캐리어)
+    // 요정 (보상형 광고 캐리어) — 생성 아트가 로드됐으면 건너뛴다
+    if (this.missing('fairy')) {
     g = this.add.graphics();
     g.fillStyle(0xa9e7ff, 0.35);
     g.fillCircle(24, 24, 23);            // 후광
@@ -245,6 +274,7 @@ export class BootScene extends Phaser.Scene {
     g.fillCircle(20, 22, 4);             // 하이라이트
     g.generateTexture('fairy', 48, 48);
     g.destroy();
+    }
 
     // 버튼 (환생)
     g = this.add.graphics();

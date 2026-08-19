@@ -1,7 +1,8 @@
 # TapTap Titans
 
 탭 타이탄 2 스타일의 **모바일 세로형 방치 탭 RPG**.
-Phaser 4 + TypeScript + Vite, 외부 아트 에셋 0개(전부 런타임 절차 생성).
+Phaser 4 + TypeScript + Vite. 아트는 생성형(다크 판타지) 90종 + 절차 생성 폴백 —
+`public/assets/` 가 비어 있어도 게임은 그대로 돌아간다.
 
 ## 로컬에서 이어서 작업하기
 
@@ -26,7 +27,7 @@ npm run dev -- --host                # 같은 와이파이의 폰에서 접속
 
 ```bash
 npm run build          # 타입체크 + 프로덕션 빌드 (dist/) — 커밋 전 필수
-npm test               # Playwright E2E 46종 (사전 npm run build 필요)
+npm test               # Playwright E2E 48종 (사전 npm run build 필요)
 npm run test:monkey    # 랜덤 입력 내구성 테스트 (시드 재현 가능)
 npm run sim            # 밸런스 시뮬 (곡선 수정 시 필수)
 npm run sim:report     # 시뮬 + HTML 리포트 (sim/out/report.html)
@@ -45,7 +46,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 ```
 서버 배포 절차는 `supabase/README.md`.
 
-**아트 생성** — 절차 생성 플레이스홀더를 실제 아트로 교체할 때.
+**아트 재생성** — 스타일을 바꾸거나 일부를 다시 뽑을 때 (기본 에셋은 이미 커밋돼 있다).
 ```bash
 pip install requests pillow
 export ELICE_API_KEY=<키>
@@ -110,7 +111,7 @@ src/scenes/GameScene      전투: 스폰·데미지·보스 타이머·분신술
 src/scenes/UIScene        HUD·스킬바·탭 패널(영웅/유물/랭킹)·팝업
 supabase/                 랭킹 서버: RLS 스키마 + 점수 검증 Edge Function
 android/                  Capacitor 안드로이드 프로젝트 (세로 고정)
-tests/game.spec.ts        Playwright E2E 16종 (window.__taptap 훅)
+tests/game.spec.ts        Playwright E2E 48종 (window.__taptap 훅)
 ```
 
 ## 온라인 랭킹 켜기
@@ -130,4 +131,5 @@ tests/game.spec.ts        Playwright E2E 16종 (window.__taptap 훅)
 ## 알려진 제약
 
 - 헤드리스 CI 스크린샷에서 일부 한글 글리프가 대체 폰트로 렌더링될 수 있음(실기기는 정상).
-- 사운드 미구현. 디자인/컨셉 아트는 추후 교체 예정(절차 생성 그래픽은 플레이스홀더).
+- 아트는 다크 판타지 컨셉(`tools/art/concepts/`)으로 확정. UI 텍스처(패널/버튼/바)는
+  일관성·용량 때문에 의도적으로 절차 생성을 유지한다.

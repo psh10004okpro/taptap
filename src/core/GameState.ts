@@ -897,10 +897,25 @@ export class GameState extends Emitter {
       this.stageEnteredAt = now;
       // lastSeen 이 미래(시계 롤백)면 오프라인 보상 없음
       const away = (now - Math.min(num(d.lastSeen, now), now)) / 1000;
+      this.claimOwnership(d);
       return away > 60 ? Math.min(away, this.offlineCapSec()) : 0;
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * 로드 직후 세이브 소유권을 이 탭으로 가져온다 — 세대만 +1 해서 되쓴다.
+   * 유저가 방금 연 탭이 이기고, 먼저 열려 있던 탭은 다음 save()/storage 이벤트에서
+   * stale 이 된다. (반대로 두면 옛 탭의 5초 자동저장이 새 탭을 stale 로 만들어,
+   * 정작 보고 있는 화면의 진행이 저장되지 않는다.)
+   * 진행 데이터는 건드리지 않는다 — lastSeen 을 덮으면 오프라인 보상이 사라진다.
+   */
+  private claimOwnership(d: SaveData): void {
+    this.gen += 1;
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ ...d, gen: this.gen }));
+    } catch { /* ignore */ }
   }
 
   /** 오프라인 보상 골드 계산 (지급은 호출측에서) */

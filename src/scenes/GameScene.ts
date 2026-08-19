@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 import {
   COMBAT_CENTER, TOP_BAR_H, COMBAT_BOTTOM,
   SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, FLOAT_ICON, FAIRY,
-  COLLAPSED, GROUND_Y, GAME_HEIGHT,
+  COLLAPSED, MONSTER_ORIGIN_Y, GAME_HEIGHT,
   monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
@@ -40,7 +40,7 @@ export class GameScene extends Phaser.Scene {
   private killFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private fairy!: Phaser.GameObjects.Image;
   private fairyTimer: Phaser.Time.TimerEvent | null = null;
-  private groundPlate!: Phaser.GameObjects.Ellipse;
+  private groundPlate!: Phaser.GameObjects.Image;
   private tapZone!: Phaser.GameObjects.Zone;
   /** UI 접힘 여부 — 전투 화면을 아래까지 넓게 쓴다 */
   private collapsed = false;
@@ -59,10 +59,11 @@ export class GameScene extends Phaser.Scene {
     // 존 테마 오버레이 (스폰 시 존 색으로 갱신)
     this.zoneOverlay = this.add.rectangle(0, 0, 720, GAME_HEIGHT, 0x000000, 0.18).setOrigin(0, 0);
 
-    // 발밑 단상 + 그림자 (배경 텍스처가 아니라 여기 — 접기 시 함께 내려간다)
-    this.groundPlate = this.add.ellipse(COMBAT_CENTER.x, GROUND_Y, 460, 70, 0x413060, 1);
-    this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, GROUND_Y + 4, 190, 40, 0x000000, 0.35);
-    this.monster = this.add.image(COMBAT_CENTER.x, COMBAT_CENTER.y, 'monster0').setOrigin(0.5, 0.78);
+    // 발밑 접지 그림자 (배경 텍스처가 아니라 여기 — 접기 시 함께 내려간다)
+    this.groundPlate = this.add.image(COMBAT_CENTER.x, 0, 'ground-shadow');
+    this.monsterShadow = this.add.ellipse(COMBAT_CENTER.x, 0, 190, 34, 0x000000, 0.3);
+    this.monster = this.add.image(COMBAT_CENTER.x, COMBAT_CENTER.y, 'monster0')
+      .setOrigin(0.5, MONSTER_ORIGIN_Y);
 
     // 처치 파티클 — 이미터 1개 재사용 (풀 규칙: 매 처치마다 생성 금지)
     this.killFx = this.add.particles(0, 0, 'spark', {
@@ -172,6 +173,20 @@ export class GameScene extends Phaser.Scene {
     return this.collapsed ? COLLAPSED.monsterScale : 1;
   }
 
+  /**
+   * 발밑 그림자를 스프라이트의 실제 바닥선에 맞춘다.
+   * 고정 y 상수로 두면 몬스터(200x170)와 보스(280x250)에서 어긋난다.
+   */
+  private placeGroundShadow(): void {
+    const s = this.viewScale();
+    const footY = this.combatY()
+      + this.monster.height * this.baseScale * (1 - MONSTER_ORIGIN_Y);
+    this.groundPlate.setPosition(COMBAT_CENTER.x, footY)
+      .setScale((this.isBoss ? 1.2 : 1) * s);
+    this.monsterShadow.setPosition(COMBAT_CENTER.x, footY)
+      .setScale((this.isBoss ? 1.4 : 1) * s);
+  }
+
   /** 현재 레이아웃의 전투 탭 존 하한 */
   private combatBottom(): number {
     return this.collapsed ? COLLAPSED.combatBottom : COMBAT_BOTTOM;
@@ -184,14 +199,14 @@ export class GameScene extends Phaser.Scene {
   private setCollapsed(on: boolean): void {
     this.collapsed = on;
     const s = this.viewScale();
-    const gy = on ? COLLAPSED.groundY : GROUND_Y;
     this.tapZone.setSize(720, this.combatBottom() - TOP_BAR_H, true);
-    this.groundPlate.setPosition(COMBAT_CENTER.x, gy).setScale(s);
-    this.monsterShadow.setPosition(COMBAT_CENTER.x, gy + 4 * s)
-      .setScale((this.isBoss ? 1.4 : 1) * s);
     this.baseScale = (this.isBoss ? 1.25 : 1) * s;
+    this.placeGroundShadow();
     this.tweens.killTweensOf(this.monster);
     this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setScale(this.baseScale);
+    // 죽인 트윈이 스폰 페이드인(alpha 0→1)이었다면 alpha 가 0 에 멈춘다 — 살아 있으면 복구.
+    // (UIScene 이 부팅 중 'ui-collapse' 를 한 번 발행하므로 첫 스폰이 여기에 걸린다)
+    if (!this.dead) this.monster.setAlpha(1);
   }
 
   // --- 요정 (보상형 광고) ---------------------------------------------------
@@ -295,7 +310,7 @@ export class GameScene extends Phaser.Scene {
     this.baseScale = targetScale;
     this.tweens.killTweensOf(this.monster);
     this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setAlpha(0).setScale(targetScale * 0.6);
-    this.monsterShadow.setScale((this.isBoss ? 1.4 : 1) * this.viewScale());
+    this.placeGroundShadow();
     this.tweens.add({
       targets: this.monster, alpha: 1, scale: targetScale,
       duration: 200, ease: 'Back.Out',

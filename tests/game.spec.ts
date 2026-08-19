@@ -175,7 +175,9 @@ test('보스 진행: 9킬 후 보스 모드로 전환된다', async ({ page }) =
     s.addGold(1_000_000);
     for (let i = 0; i < 40; i++) s.tryBuyTap();
   });
-  for (let k = 0; k < 12 && !(await page.evaluate(() => window.__taptap!.state.mode === 'boss')); k++) {
+  // 처치 직후 재스폰(260ms) 동안의 탭은 무시되므로 배치당 1킬이 상한이다.
+  // 9킬에 필요한 최소 배치는 9 — 느린 머신에서도 여유가 남게 예산을 24 로 둔다.
+  for (let k = 0; k < 24 && !(await page.evaluate(() => window.__taptap!.state.mode === 'boss')); k++) {
     await tapGame(page, 360, 470, 6);
     await page.waitForTimeout(350);
   }
@@ -1207,5 +1209,110 @@ test('UI 접기: 하단 탭 바만 남기고 전투 화면을 아래까지 넓�
   await page.waitForTimeout(400);
   expect(await reg()).toBe(false);
   await page.screenshot({ path: 'screenshots/26-reexpanded.png' });
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+/** GameScene 의 몬스터 스프라이트 상태 (씬 키가 아니라 필드로 찾는다) */
+async function monsterState(page: Page): Promise<{ alpha: number; scale: number }> {
+  return page.evaluate(() => {
+    const g = window.__taptap!.game as {
+      scene: { getScenes(active: boolean): { monster?: { alpha: number; scaleX: number } }[] };
+    };
+    const gs = g.scene.getScenes(true).find((s) => s.monster);
+    const m = gs!.monster!;
+    return { alpha: m.alpha, scale: m.scaleX };
+  });
+}
+
+test('몬스터 가시성: 부팅과 접기 전환 후에도 스프라이트가 보인다', async ({ page }) => {
+  const errors = await setup(page);
+  // UIScene 이 부팅 중 'ui-collapse' 를 발행하며 스폰 페이드인 트윈을 죽인다.
+  // setCollapsed 가 alpha 를 복구하지 않으면 몬스터가 투명한 채로 남는다.
+  await expect.poll(async () => (await monsterState(page)).alpha,
+    { timeout: 5_000 }).toBe(1);
+
+  // 접기 → 펼치기 전환 중에도 투명해지지 않는다
+  await tapGame(page, 56, 536);
+  await page.waitForTimeout(400);
+  expect((await monsterState(page)).alpha).toBe(1);
+  await tapGame(page, 502, 1240);
+  await page.waitForTimeout(400);
+  expect((await monsterState(page)).alpha).toBe(1);
+
+  // 처치 → 재스폰 후에도 보인다
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1_000_000);
+    for (let i = 0; i < 40; i++) s.tryBuyTap();
+  });
+  await tapGame(page, 360, 470, 8);
+  await page.waitForTimeout(700);
+  await expect.poll(async () => (await monsterState(page)).alpha,
+    { timeout: 5_000 }).toBe(1);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('멀티탭 소유권: 나중에 연 탭이 저장을 이어가고 먼저 연 탭이 멈춘다', async ({ page, context }) => {
+  const errors = await setup(page);
+  const storedGen = (p: Page) => p.evaluate(() => {
+    const raw = localStorage.getItem('taptap-titans-v1');
+    return raw ? (JSON.parse(raw) as { gen: number }).gen : -1;
+  });
+  await page.evaluate(() => { const s = window.__taptap!.state; s.addRelics(7); s.save(); });
+  const genA = await storedGen(page);
+
+  // 탭 B 를 열면 로드 시점에 세대를 인계받는다 (새 탭 우선)
+  const pageB = await context.newPage();
+  await pageB.goto('/');
+  await pageB.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  expect(await storedGen(pageB)).toBeGreaterThan(genA);
+
+  // B 는 계속 저장할 수 있어야 한다 — 유저가 보고 있는 화면이 B 이므로
+  const genB = await storedGen(pageB);
+  await pageB.evaluate(() => { const s = window.__taptap!.state; s.addRelics(3); s.save(); });
+  expect(await pageB.evaluate(() => window.__taptap!.state.isStale())).toBe(false);
+  expect(await storedGen(pageB)).toBeGreaterThan(genB);
+  expect(await pageB.evaluate(() => window.__taptap!.state.relics)).toBe(10);
+
+  // A 는 stale 이 되어 덮어쓰지 않는다
+  await expect.poll(async () => page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.save();
+    return s.isStale();
+  }), { timeout: 5_000 }).toBe(true);
+  const after = await storedGen(pageB);
+  await page.evaluate(() => window.__taptap!.state.save());
+  expect(await storedGen(pageB)).toBe(after); // A 의 저장이 실제로 무시된다
+
+  await pageB.close();
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('절차 생성 폴백: 에셋이 하나도 없어도 게임이 그대로 돌아간다', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // manifest 를 빈 목록으로 가로채면 BootScene 은 생성 아트를 한 장도 로드하지 않는다
+  await page.route('**/assets/manifest.json', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{"keys":[]}' }));
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForFunction(
+    () => (window.__taptap?.game as { registry: { get(k: string): unknown } } | undefined)
+      ?.registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
+  // 절차 텍스처로 몬스터가 보이고 전투가 성립한다
+  await expect.poll(async () => (await monsterState(page)).alpha, { timeout: 5_000 }).toBe(1);
+  const before = await page.evaluate(() => window.__taptap!.state.lifetime.taps);
+  await tapGame(page, 360, 470, 5);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__taptap!.state.lifetime.taps))
+    .toBeGreaterThan(before);
+  // 펫 탭도 폴백(색 원 + 글리프)으로 그려진다
+  await tapGame(page, 504, 746);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'screenshots/27-fallback.png' });
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });

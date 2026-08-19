@@ -652,15 +652,20 @@ export class UIScene extends Phaser.Scene {
     PETS.forEach((pt, i) => {
       const x = 120 + (i % 3) * 240;
       const y = PANEL_Y + 110 + Math.floor(i / 3) * 104;
-      const g = this.add.graphics({ x, y: y - 28 });
-      const dark = Phaser.Display.Color.ValueToColor(pt.color).darken(30).color;
-      g.fillStyle(dark, 1).fillCircle(0, 0, 26);
-      g.fillStyle(pt.color, 1).fillCircle(0, -1, 22);
-      c.add(g);
-      c.add(this.add.text(x, y - 30, pt.glyph, {
-        fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
-        stroke: '#22182f', strokeThickness: 3,
-      }).setOrigin(0.5));
+      // 생성 아트가 있으면 초상, 없으면 색 원 + 글리프로 폴백 (에셋 0개로도 동작)
+      if (this.textures.exists('pet' + pt.id)) {
+        c.add(this.add.image(x, y - 28, 'pet' + pt.id));
+      } else {
+        const g = this.add.graphics({ x, y: y - 28 });
+        const dark = Phaser.Display.Color.ValueToColor(pt.color).darken(30).color;
+        g.fillStyle(dark, 1).fillCircle(0, 0, 26);
+        g.fillStyle(pt.color, 1).fillCircle(0, -1, 22);
+        c.add(g);
+        c.add(this.add.text(x, y - 30, pt.glyph, {
+          fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+          stroke: '#22182f', strokeThickness: 3,
+        }).setOrigin(0.5));
+      }
       c.add(this.add.text(x, y + 6, pt.name, {
         fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5));
@@ -1375,7 +1380,10 @@ export class UIScene extends Phaser.Scene {
       if (!h) return;
       const lvl = st.heroLevels[h.id];
       row.icon.setTexture('hero' + h.id);
-      row.initial.setText(h.name.charAt(0));
+      // 생성 초상이 있으면 이니셜은 얼굴을 가릴 뿐이다 — 절차 텍스처일 때만 표기한다
+      const art = (this.registry.get('generatedArt') as string[] | undefined) ?? [];
+      const drawn = art.includes('hero' + h.id);
+      row.initial.setText(drawn ? '' : h.name.charAt(0)).setVisible(visible && !drawn);
       row.name.setText(`${h.name} · ${h.title}`);
       const active = st.heroPassivesActive(h.id);
       const next = h.passives.find((ps) => lvl < ps.unlockLevel);

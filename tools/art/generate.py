@@ -26,28 +26,35 @@ BASE = os.environ.get("ELICE_BASE_URL", "").rstrip("/")
 # ---------------------------------------------------------------------------
 # 스타일 상수 — 전 에셋 공통 룩 (변경 시 전체 재생성 필요)
 # ---------------------------------------------------------------------------
-STYLE = ("vibrant stylized cartoon fantasy art for a mobile idle tap RPG, "
-         "bold simple shapes, clean thick dark outlines, rich saturated colors, "
-         "soft cel shading, high contrast, no text, no watermark")
+# 확정 컨셉: 다크 판타지 (tools/art/concepts/dark). 부분 재생성 시에도 이 문구를 유지한다.
+STYLE = ("dark fantasy digital painting for a mobile idle tap RPG, gothic grim "
+         "atmosphere, desaturated moody palette of deep blues and blacks with fiery "
+         "orange rim light, dramatic chiaroscuro lighting, painterly detailed "
+         "brushwork, no text, no watermark, no logo")
+# API 가 background=transparent 를 지원하지 않는다 — 평평한 회색 배경으로 뽑고
+# process.py 의 edge chroma key 로 잘라낸다. 프롬프트에 "transparent" 를 쓰면
+# 체커보드 무늬가 그려지므로 금지.
 SPRITE = ("single isolated character centered, full body, facing the viewer, "
-          "transparent background, " + STYLE)
-ICON = ("game icon, single centered object, transparent background, "
+          "flat solid neutral gray background, no ground shadow, " + STYLE)
+ICON = ("game icon, single centered object, flat solid neutral gray background, "
         "slight glow, " + STYLE)
 
 ZONES = [
-    ("bg-zone0", "sunny green grassland meadow with rolling hills, scattered flowers, distant trees"),
+    ("bg-zone0", "windswept green grassland meadow with rolling hills, scattered flowers, distant trees"),
     ("bg-zone1", "dark mysterious forest with giant twisted trees, glowing mushrooms, dim teal light"),
     ("bg-zone2", "underground cave with glowing purple crystals, stalactites, rocky floor"),
-    ("bg-zone3", "golden desert with sand dunes, half-buried ancient ruins, blazing sky"),
+    ("bg-zone3", "golden desert with sand dunes, half-buried ancient ruins, burnt ochre sky"),
     ("bg-zone4", "murky swamp with dead trees, green fog, lily pads on dark water"),
     ("bg-zone5", "snowy tundra with ice cliffs, falling snow, pale blue sky, frozen pines"),
     ("bg-zone6", "volcanic wasteland with lava rivers, black rock, ember particles, red glow"),
     ("bg-zone7", "ancient stone ruins with broken pillars and statues, overgrown vines, purple dusk"),
-    ("bg-zone8", "floating sky islands above clouds, waterfalls falling into the void, bright blue sky"),
+    ("bg-zone8", "floating sky islands above clouds, waterfalls falling into the void, pale storm-lit sky"),
     ("bg-zone9", "cosmic abyss with dark void, swirling nebula, floating obsidian rocks, deep indigo"),
 ]
-BG_SUFFIX = ("; tall vertical composition: sky and horizon in the upper 45%, "
-             "wide open flat ground filling the lower 55% as a stage for a monster, "
+# 몬스터는 화면 y=470/1280 (37%) 에 선다 — 지평선이 그보다 위에 있어야 발이 땅에 닿는다.
+BG_SUFFIX = ("; tall vertical composition: horizon line high up in the upper third of "
+             "the frame, wide open flat ground filling the entire lower two thirds as "
+             "a stage for a monster, seen from a low ground-level camera, "
              "no creatures, no characters, vertical mobile game battle background "
              "(9:16, the lower half stays visible when the UI is collapsed), " + STYLE)
 
@@ -65,7 +72,9 @@ MONSTERS = [
     ("monster10", "rose-pink horned lizard critter with a curled tail"),
     ("monster11", "lime green thorny plant creature with leafy arms and fangs"),
 ]
-MONSTER_SUFFIX = ", chibi proportions, cute but slightly menacing, standing pose, " + SPRITE
+MONSTER_SUFFIX = (", stocky readable silhouette, menacing battle-ready stance, "
+                  "keep the described creature type and color clearly recognizable, "
+                  + SPRITE)
 
 HEROES = [
     "young apprentice swordsman with a simple short sword, brown hair, determined eyes",
@@ -93,8 +102,11 @@ HEROES = [
     "doom knight of ragnarok with black-red armor and a greatsword of embers",
     "time watcher with hourglass staff, clockwork wings, ethereal robes",
 ]
-HERO_SUFFIX = (", fantasy hero bust portrait from chest up, facing slightly left, "
-               "dark simple backdrop, " + STYLE)
+# 최종 표시 크기가 42px 원형이다 — 얼굴이 밝고 실루엣이 배경과 분리돼야 구분된다.
+HERO_SUFFIX = (", fantasy hero bust portrait from chest up, face large in frame, "
+               "facing slightly left, strong bright key light on the face, "
+               "vivid saturated costume color, clearly readable as a tiny circular "
+               "avatar, plain uncluttered mid-tone backdrop, " + STYLE)
 
 SKILLS = [
     ("skill0", "flaming sword engulfed in red-orange fire"),
@@ -128,6 +140,25 @@ ARTIFACTS = [
     ("artifact19", "brown-gold pulsing earth heart stone"),
 ]
 
+PETS = [
+    ("pet0", "small red fire salamander lizard with ember-lit scales"),
+    ("pet1", "sleek blue wind falcon with sharp spread wings"),
+    ("pet2", "plump golden mole holding a gold nugget"),
+    ("pet3", "violet shadow lynx with glowing eyes and smoky fur"),
+    ("pet4", "green mossy turtle with a stone shell and vines"),
+    ("pet5", "small coral-red fairy sprite with tiny glowing wings"),
+    ("pet6", "steel-blue thunder foal with crackling lightning mane"),
+    ("pet7", "orange swift marten mid-dash with a streak of motion"),
+    ("pet8", "purple crystal beetle with faceted gem carapace"),
+    ("pet9", "dark red lava toad with molten cracks in its skin"),
+    ("pet10", "gray silent owl with wide moonlit eyes"),
+    ("pet11", "pale pink rainbow butterfly with iridescent wings"),
+]
+# 펫은 52px 원형 아이콘으로 표시된다 — 한 마리가 정면으로 크게 잡혀야 구분된다.
+PET_SUFFIX = (", single cute-menacing creature companion, centered close-up, "
+              "facing the viewer, vivid saturated color, readable as a tiny "
+              "circular icon, plain uncluttered dark backdrop, " + STYLE)
+
 EQUIPS = [
     ("equip0", "steel sword with golden hilt"),
     ("equip1", "sturdy kite shield with gold emblem"),
@@ -145,20 +176,30 @@ def manifest() -> list[dict]:
                      "size": "1024x1024", "quality": "medium", "background": "transparent"})
     jobs.append({"key": "boss", "prompt":
                  "huge crimson demon ogre monster with ivory horns, glowing yellow eyes, "
-                 "sharp teeth grin, cute-menacing chibi boss" + ", " + SPRITE,
+                 "sharp teeth grin, towering dark fantasy boss" + ", " + SPRITE,
                  "size": "1024x1024", "quality": "medium", "background": "transparent"})
     for i, desc in enumerate(HEROES):
         jobs.append({"key": f"hero{i}", "prompt": desc + HERO_SUFFIX,
-                     "size": "1024x1024", "quality": "low", "background": None})
+                     "size": "1024x1024", "quality": "medium", "background": None})
     for key, desc in SKILLS:
-        jobs.append({"key": key, "prompt": desc + ", magic spell " + ICON,
-                     "size": "1024x1024", "quality": "low", "background": "transparent"})
+        # 스킬 텍스처는 스킬 버튼의 면 자체다 — 6종 배경 톤이 어긋나면 바로 보인다
+        jobs.append({"key": key, "prompt": desc + ", glowing magic spell emblem "
+                     "centered on a round dark stone amulet, uniform dark background, "
+                     + STYLE, "size": "1024x1024", "quality": "medium"})
     for key, desc in ARTIFACTS:
         jobs.append({"key": key, "prompt": desc + ", legendary relic " + ICON,
                      "size": "1024x1024", "quality": "low", "background": "transparent"})
+    for key, desc in PETS:
+        jobs.append({"key": key, "prompt": desc + PET_SUFFIX,
+                     "size": "1024x1024", "quality": "medium", "background": None})
     for key, desc in EQUIPS:
         jobs.append({"key": key, "prompt": desc + ", equipment " + ICON,
                      "size": "1024x1024", "quality": "low", "background": "transparent"})
+    # 요정: 전투 화면을 가로지르는 보상형 광고 캐리어 (48px)
+    jobs.append({"key": "fairy", "prompt":
+                 "tiny glowing fairy sprite with luminous translucent wings, "
+                 "trailing sparkles, seen from the side in flight, " + ICON,
+                 "size": "1024x1024", "quality": "medium", "background": None})
     jobs.append({"key": "coin", "prompt": "shiny gold coin " + ICON,
                  "size": "1024x1024", "quality": "low", "background": "transparent"})
     return jobs
@@ -208,7 +249,8 @@ def main() -> None:
             if not filters or any(j["key"].startswith(f) for f in filters)]
     print(f"{len(jobs)} jobs")
     done = 0
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    workers = int(os.environ.get("ART_WORKERS", "4"))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {ex.submit(gen_one, j): j for j in jobs}
         for fut in as_completed(futs):
             key, status = fut.result()
