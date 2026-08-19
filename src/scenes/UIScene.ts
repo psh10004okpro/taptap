@@ -18,6 +18,9 @@ import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import { IapService, MockIapProvider } from '../core/Iap.ts';
 import { Sfx } from '../sfx.ts';
+import { Bgm } from '../bgm.ts';
+import { Haptics } from '../haptics.ts';
+import * as DevTools from '../core/DevTools.ts';
 import * as Tournament from '../core/Tournament.ts';
 import * as Season from '../core/Season.ts';
 import * as ClanBoss from '../core/ClanBoss.ts';
@@ -299,6 +302,15 @@ export class UIScene extends Phaser.Scene {
       if (Sfx.isEnabled()) Sfx.play('tab');
     });
 
+    // 설정 팝업
+    const setBtn = this.add.text(596, 122, '[설정]', {
+      fontFamily: FONT, fontSize: '19px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    setBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      Sfx.play('tab');
+      this.openSettings();
+    });
+
     // 환생 버튼
     const btn = this.add.image(0, 0, 'btn-prestige');
     this.prestigeLabel = this.add.text(0, 0, '환생', {
@@ -313,13 +325,27 @@ export class UIScene extends Phaser.Scene {
 
   private tutBg!: Phaser.GameObjects.Image;
   private tutText!: Phaser.GameObjects.Text;
+  private tutPointer!: Phaser.GameObjects.Text;
+  /** 단계별 포인터: [x, y, 글리프, 영웅 탭 필요 여부] (null = 포인터 없음) */
+  private static readonly TUT_POINTS: ([number, number, string, boolean] | null)[] = [
+    [GAME_WIDTH / 2, 330, '▼', false], // 몬스터
+    [GAME_WIDTH - 96, 752, '▼', true], // 탭 공격력 구매 버튼 위
+    [GAME_WIDTH - 96, 806, '▼', true], // 첫 영웅 고용 버튼 위
+    [GAME_WIDTH / 2, 545, '▼', false], // 보스 도전 버튼 위
+    [GAME_WIDTH - 78, 96, '▲', false], // 환생 버튼 아래
+  ];
 
   private buildTutorial(): void {
-    this.tutBg = this.add.image(GAME_WIDTH / 2, 612, 'tut-banner').setDepth(40);
-    this.tutText = this.add.text(GAME_WIDTH / 2, 612, '', {
+    // 배너는 HP 바 아래 (보스 도전 버튼 y=600 과 겹치지 않게)
+    this.tutBg = this.add.image(GAME_WIDTH / 2, 268, 'tut-banner').setDepth(40);
+    this.tutText = this.add.text(GAME_WIDTH / 2, 268, '', {
       fontFamily: FONT, fontSize: '21px', color: '#ffe9a8', fontStyle: 'bold',
       align: 'center', wordWrap: { width: 560 },
     }).setOrigin(0.5).setDepth(41);
+    this.tutPointer = this.add.text(0, 0, '▼', {
+      fontFamily: FONT, fontSize: '34px', color: '#f1c40f', fontStyle: 'bold',
+      stroke: '#22182f', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(42).setVisible(false);
     // 마지막 단계(환생 안내)에서만 탭으로 닫기
     this.tutBg.on('pointerdown', () => {
       Sfx.play('tab');
@@ -337,6 +363,8 @@ export class UIScene extends Phaser.Scene {
     this.tutText.setVisible(show);
     if (!show) {
       this.tutBg.disableInteractive();
+      this.tutPointer.setVisible(false);
+      this.tweens.killTweensOf(this.tutPointer);
       return;
     }
     this.tutText.setText(TUTORIAL_STEPS[step]);
@@ -345,6 +373,20 @@ export class UIScene extends Phaser.Scene {
       this.tutBg.setInteractive({ useHandCursor: true });
     } else {
       this.tutBg.disableInteractive();
+    }
+    // 대상 하이라이트 포인터 (영웅 탭 전용 단계는 다른 탭에서 숨김)
+    const pt = UIScene.TUT_POINTS[step];
+    this.tweens.killTweensOf(this.tutPointer);
+    if (pt && (!pt[3] || this.curTab === 0)) {
+      const [x, y, glyph] = pt;
+      const dir = glyph === '▼' ? 10 : -10;
+      this.tutPointer.setText(glyph).setPosition(x, y).setVisible(true);
+      this.tweens.add({
+        targets: this.tutPointer, y: y + dir,
+        duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+      });
+    } else {
+      this.tutPointer.setVisible(false);
     }
     // 단계 전환 펀치
     this.tutBg.setScale(0.94);
@@ -467,10 +509,14 @@ export class UIScene extends Phaser.Scene {
     ];
   }
 
+  private curTab = 0;
+
   private setTab(i: number): void {
+    this.curTab = i;
     this.tabButtons.forEach((t, k) => t.img.setTexture(k === i ? 'tab-on' : 'tab-off'));
     this.tabContents.forEach((c, k) => c.setVisible(k === i));
     this.refreshPanel(); // 탭 진입 시점 기준 최신 수치 표시
+    this.refreshTutorial(); // 포인터는 영웅 탭에서만 유효한 단계가 있다
     if (i === TAB_NAMES.length - 1) this.loadRanking();
   }
 
@@ -1065,7 +1111,7 @@ export class UIScene extends Phaser.Scene {
       this.tweens.add({ targets: this.stageText, scale: 1.18, duration: 90, yoyo: true });
     });
     this.state.on('mode', () => this.refreshStage());
-    this.state.on('prestige', () => { Sfx.play('prestige'); this.refreshAll(); });
+    this.state.on('prestige', () => { Sfx.play('prestige'); Haptics.buzz(80); this.refreshAll(); });
     this.state.on('quest', () => this.refreshPanel());
     this.state.on('pet', (...args: unknown[]) => {
       const pt = PETS[args[0] as number];
@@ -1325,6 +1371,106 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({
       targets: t, y: 610, alpha: 0, duration: 1400, ease: 'Quad.In', delay: 300,
       onComplete: () => { if (this.toast === t) this.toast = null; t.destroy(); },
+    });
+  }
+
+  // --- 설정 팝업 ------------------------------------------------------------
+
+  private settingsParts: Phaser.GameObjects.GameObject[] = [];
+
+  private closeSettings(): void {
+    this.settingsParts.forEach((o) => o.destroy());
+    this.settingsParts = [];
+  }
+
+  private openSettings(): void {
+    if (this.settingsParts.length) return;
+    const parts = this.settingsParts;
+    const dim = this.add.image(0, 0, 'dim').setOrigin(0, 0).setDepth(70).setInteractive();
+    parts.push(dim);
+    const top = 200;
+    parts.push(this.add.image(GAME_WIDTH / 2, 620, 'panel').setDepth(71).setScale(0.94, 1.45));
+    parts.push(this.add.text(GAME_WIDTH / 2, top + 40, '설정', {
+      fontFamily: FONT, fontSize: '30px', color: '#f9e79f', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(72));
+    const close = this.add.text(GAME_WIDTH - 70, top + 40, '✕', {
+      fontFamily: FONT, fontSize: '30px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(72).setInteractive({ useHandCursor: true });
+    close.on('pointerdown', () => this.closeSettings());
+    parts.push(close);
+
+    /** 라벨 + 우측 버튼 텍스트들. 반환된 refresh 로 상태 표기 갱신 */
+    const textBtn = (x: number, y: number, label: string, on: () => void):
+    Phaser.GameObjects.Text => {
+      const t = this.add.text(x, y, label, {
+        fontFamily: FONT, fontSize: '18px', color: '#9fd8ff', fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(73).setInteractive({ useHandCursor: true });
+      t.on('pointerdown', on);
+      parts.push(t);
+      return t;
+    };
+    const label = (y: number, text: string): void => {
+      parts.push(this.add.image(GAME_WIDTH / 2, y, 'row').setDepth(72).setScale(1, 1.2));
+      parts.push(this.add.text(48, y, text, {
+        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5).setDepth(73));
+    };
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+    // 효과음: 토글 + 음량 (20% 스텝)
+    let y = top + 104;
+    label(y, '효과음');
+    const sfxState = this.add.text(GAME_WIDTH - 210, y, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(73);
+    parts.push(sfxState);
+    const paintSfx = () => sfxState.setText(Sfx.isEnabled() ? `켬 · ${pct(Sfx.volume())}` : '끔');
+    paintSfx();
+    textBtn(GAME_WIDTH - 300, y, '−', () => { Sfx.setVolume(Sfx.volume() - 0.2); paintSfx(); Sfx.play('tab'); });
+    textBtn(GAME_WIDTH - 120, y, '+', () => { Sfx.setVolume(Sfx.volume() + 0.2); paintSfx(); Sfx.play('tab'); });
+    textBtn(GAME_WIDTH - 62, y, '토글', () => { Sfx.toggle(); paintSfx(); Sfx.play('tab'); });
+
+    // 배경음악
+    y += 66;
+    label(y, '배경음악');
+    const bgmState = this.add.text(GAME_WIDTH - 210, y, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(73);
+    parts.push(bgmState);
+    const paintBgm = () => bgmState.setText(Bgm.isEnabled() ? `켬 · ${pct(Bgm.volume())}` : '끔');
+    paintBgm();
+    textBtn(GAME_WIDTH - 300, y, '−', () => { Bgm.setVolume(Bgm.volume() - 0.2); paintBgm(); });
+    textBtn(GAME_WIDTH - 120, y, '+', () => { Bgm.setVolume(Bgm.volume() + 0.2); paintBgm(); });
+    textBtn(GAME_WIDTH - 62, y, '토글', () => { Bgm.toggle(); paintBgm(); });
+
+    // 진동
+    y += 66;
+    label(y, '진동 (모바일)');
+    const vibState = this.add.text(GAME_WIDTH - 210, y, '', {
+      fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(73);
+    parts.push(vibState);
+    const paintVib = () => vibState.setText(Haptics.isEnabled() ? '켬' : '끔');
+    paintVib();
+    textBtn(GAME_WIDTH - 62, y, '토글', () => { Haptics.toggle(); paintVib(); if (Haptics.isEnabled()) Haptics.buzz(30); });
+
+    // 세이브 백업/복원
+    y += 66;
+    label(y, '세이브 백업');
+    textBtn(GAME_WIDTH - 62, y, '복사', () => {
+      const json = DevTools.exportSave(this.state);
+      if (!json) { this.showToast('내보낼 세이브가 없습니다'); return; }
+      void navigator.clipboard?.writeText(json)
+        .then(() => this.showToast('세이브가 클립보드에 복사되었습니다'))
+        .catch(() => this.showToast('클립보드 접근이 거부되었습니다'));
+    });
+    y += 66;
+    label(y, '세이브 복원 (붙여넣기)');
+    textBtn(GAME_WIDTH - 62, y, '입력', () => {
+      const json = window.prompt('세이브 JSON 을 붙여넣으세요');
+      if (!json) return;
+      if (!DevTools.importSave(json)) this.showToast('세이브 형식이 올바르지 않습니다');
+      // 성공 시 importSave 가 리로드한다
     });
   }
 

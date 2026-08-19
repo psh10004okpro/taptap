@@ -1,0 +1,50 @@
+# 푸시/PR 마다 빌드(타입체크 겸용) + 밸런스 시뮬 + E2E + 몽키 스모크를 돌린다.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (typecheck + bundle)
+        run: npm run build
+
+      - name: Balance simulator smoke
+        run: npm run sim
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npx playwright test
+
+      - name: Monkey smoke (30s, seeded)
+        run: npx playwright test tests/monkey.spec.ts
+        env:
+          MONKEY: '1'
+          MONKEY_MS: '30000'
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            screenshots/
+          if-no-files-found: ignore

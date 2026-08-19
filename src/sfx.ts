@@ -8,6 +8,7 @@ export type SfxName =
   | 'bossSpawn' | 'bossWin' | 'bossFail' | 'prestige' | 'claim' | 'error';
 
 const MUTE_KEY = 'taptap-sfx-muted';
+const VOL_KEY = 'taptap-sfx-vol';
 
 /** 이름별 최소 재생 간격(ms) — 연타/분신술 스팸 방지 */
 const THROTTLE: Record<SfxName, number> = {
@@ -22,16 +23,30 @@ class SfxEngine {
   private noiseBuf: AudioBuffer | null = null;
   private last: Partial<Record<SfxName, number>> = {};
   private muted: boolean;
+  private vol: number;
 
   constructor() {
     let saved: string | null = null;
-    try { saved = localStorage.getItem(MUTE_KEY); } catch { /* 사파리 프라이빗 등 */ }
+    let vol: string | null = null;
+    try {
+      saved = localStorage.getItem(MUTE_KEY);
+      vol = localStorage.getItem(VOL_KEY);
+    } catch { /* 사파리 프라이빗 등 */ }
     this.muted = saved === '1';
+    const v = Number(vol);
+    this.vol = Number.isFinite(v) && vol !== null ? Math.min(1, Math.max(0, v)) : 0.5;
     // 브라우저 자동재생 정책: 첫 사용자 제스처에서 컨텍스트를 깨운다
     document.addEventListener('pointerdown', () => this.unlock(), { capture: true });
   }
 
   isEnabled(): boolean { return !this.muted; }
+  volume(): number { return this.vol; }
+
+  setVolume(v: number): void {
+    this.vol = Math.min(1, Math.max(0, v));
+    try { localStorage.setItem(VOL_KEY, String(this.vol)); } catch { /* noop */ }
+    if (this.master) this.master.gain.value = this.vol;
+  }
 
   toggle(): boolean {
     this.muted = !this.muted;
@@ -46,7 +61,7 @@ class SfxEngine {
       try {
         this.ctx = new AudioContext();
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.5;
+        this.master.gain.value = this.vol;
         this.master.connect(this.ctx.destination);
       } catch { return; } // WebAudio 미지원 환경은 조용히 무음
     }

@@ -966,8 +966,8 @@ test('온보딩: 새 게임 5단계가 순서대로 진행되고 기존 세이�
   await page.evaluate(() => window.__taptap!.state.recordKill(true));
   expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(4);
 
-  // 4단계: 배너 탭으로 닫기 → 완료(99)
-  await tapGame(page, 360, 612);
+  // 4단계: 배너(HP 바 아래) 탭으로 닫기 → 완료(99)
+  await tapGame(page, 360, 268);
   await expect.poll(() => page.evaluate(() => window.__taptap!.state.tut)).toBe(99);
 
   // 완료 상태는 저장/복원 유지
@@ -988,5 +988,28 @@ test('온보딩: 새 게임 5단계가 순서대로 진행되고 기존 세이�
   await page.reload();
   await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
   expect(await page.evaluate(() => window.__taptap!.state.tut)).toBe(99);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('설정: SFX/BGM/진동 토글이 팝업에서 동작하고 영속된다', async ({ page }) => {
+  const errors = await setup(page);
+
+  // [설정] 버튼 → 팝업
+  await tapGame(page, 596, 122);
+  // SFX 토글 (행 y=304)
+  await tapGame(page, 658, 304);
+  expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(false);
+  // BGM 토글 (행 y=370) — 기본 켬 → 끔
+  await tapGame(page, 658, 370);
+  expect(await page.evaluate(() => localStorage.getItem('taptap-bgm-on'))).toBe('0');
+  // 진동 토글 (행 y=436) — 기본 켬 → 끔
+  await tapGame(page, 658, 436);
+  expect(await page.evaluate(() => localStorage.getItem('taptap-vibrate'))).toBe('0');
+  // 닫기 후 리로드해도 유지
+  await tapGame(page, 650, 240);
+  await page.reload();
+  await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
+  expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(false);
+  expect(await page.evaluate(() => localStorage.getItem('taptap-bgm-on'))).toBe('0');
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });

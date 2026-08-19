@@ -10,6 +10,7 @@ import {
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
 import { Sfx } from '../sfx.ts';
+import { Haptics } from '../haptics.ts';
 
 const FLOAT_POOL = 24;
 const COIN_POOL = 16;
@@ -285,6 +286,7 @@ export class GameScene extends Phaser.Scene {
     Sfx.play(wasBoss ? 'bossWin' : 'kill');
     Sfx.play('coin');
     if (wasBoss) {
+      Haptics.buzz(40);
       this.cameras.main.shake(220, 0.012);
       this.game.events.emit('boss-timer', -1);
     }
