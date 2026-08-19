@@ -15,7 +15,8 @@
     "sim:tune": "node sim/tune.ts",
     "test:monkey": "MONKEY=1 playwright test --grep @monkey",
     "sim:report": "node sim/run.ts 3 && node sim/report.ts",
-    "verify:supabase": "node tools/verify-supabase.mjs"
+    "verify:supabase": "node tools/verify-supabase.mjs",
+    "perf": "node tools/perf.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
