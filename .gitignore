@@ -6,3 +6,6 @@ screenshots/
 *.local
 .env
 .env.local
+
+# 아트 생성 원본 (후처리 결과만 public/assets 에 커밋)
+tools/art/raw/

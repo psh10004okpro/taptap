@@ -30,6 +30,7 @@ export class GameScene extends Phaser.Scene {
   private cloneTick = 0;   // 분신술 자동 탭 타이밍
   private baseScale = 1;   // 현재 몬스터의 기준 스케일 (반동 트윈 누적 방지)
   private zoneOverlay!: Phaser.GameObjects.Rectangle;
+  private bgImage!: Phaser.GameObjects.Image;
   private spawnTimer: Phaser.Time.TimerEvent | null = null; // 스폰 예약 단일화
 
   private floatPool: Phaser.GameObjects.Text[] = [];
@@ -43,7 +44,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.state = this.registry.get('state') as GameState;
 
-    this.add.image(0, 0, 'bg').setOrigin(0, 0);
+    this.bgImage = this.add.image(0, 0, 'bg').setOrigin(0, 0);
     // 존 테마 오버레이 (스폰 시 존 색으로 갱신)
     this.zoneOverlay = this.add.rectangle(0, 0, 720, PANEL_Y, 0x000000, 0.18).setOrigin(0, 0);
 
@@ -128,7 +129,16 @@ export class GameScene extends Phaser.Scene {
     this.dead = false;
 
     const zone = zoneFor(st.stage);
-    this.zoneOverlay.setFillStyle(zone.tint, 0.22);
+    // 존별 생성 아트 배경이 있으면 교체하고 틴트는 옅게, 없으면 공용 bg + 진한 틴트
+    const bgKey = 'bg-zone' + zone.id;
+    if (this.textures.exists(bgKey)) {
+      if (this.bgImage.texture.key !== bgKey) {
+        this.bgImage.setTexture(bgKey).setDisplaySize(720, PANEL_Y);
+      }
+      this.zoneOverlay.setFillStyle(zone.tint, 0.08);
+    } else {
+      this.zoneOverlay.setFillStyle(zone.tint, 0.22);
+    }
     if (this.isBoss) {
       this.monster.setTexture('boss');
       this.nameText.setText(zone.bossName).setColor('#ff9c9c');

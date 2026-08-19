@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// BootScene: 외부 에셋 없이 모든 텍스처를 Graphics 로 절차 생성한다.
+// BootScene: 생성 아트(public/assets/, manifest.json 기준)를 로드하고,
+// 없는 키는 Graphics 절차 생성으로 폴백한다. 텍스처 생성은 이 씬에서만.
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config.ts';
@@ -12,7 +13,25 @@ const MONSTER_COLORS = [
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
 
+  preload(): void {
+    // 에셋 목록은 manifest 가 단일 출처 — 없는 파일을 긁어 404 를 내지 않는다.
+    this.load.json('asset-manifest', 'assets/manifest.json');
+  }
+
   create(): void {
+    const man = this.cache.json.get('asset-manifest') as { keys?: string[] } | undefined;
+    const keys = (man?.keys ?? []).filter((k) => /^[\w-]+$/.test(k));
+    if (keys.length > 0) {
+      keys.forEach((k) => this.load.image(k, 'assets/' + k + '.png'));
+      this.load.once('complete', () => this.buildAndStart());
+      this.load.start();
+    } else {
+      this.buildAndStart();
+    }
+  }
+
+  /** 로드되지 않은 키만 절차 생성한 뒤 게임을 시작한다 */
+  private buildAndStart(): void {
     this.makeBackground();
     this.makeMonsters();
     this.makeBoss();
@@ -20,6 +39,10 @@ export class BootScene extends Phaser.Scene {
     this.makeUiTextures();
     this.scene.start('Game');
     this.scene.launch('UI');
+  }
+
+  private missing(key: string): boolean {
+    return !this.textures.exists(key);
   }
 
   /** 세로 그라데이션 하늘 + 능선 + 지면 */
@@ -51,6 +74,7 @@ export class BootScene extends Phaser.Scene {
   /** 슬라임형 몬스터 6종 */
   private makeMonsters(): void {
     MONSTER_COLORS.forEach((color, i) => {
+      if (!this.missing('monster' + i)) return;
       const g = this.add.graphics();
       const dark = Phaser.Display.Color.ValueToColor(color).darken(25).color;
       const w = 200, h = 170;
@@ -94,6 +118,7 @@ export class BootScene extends Phaser.Scene {
 
   /** 보스: 뿔 달린 대형 몬스터 */
   private makeBoss(): void {
+    if (!this.missing('boss')) return;
     const g = this.add.graphics();
     const w = 280, h = 250;
     const color = 0xc0392b, dark = 0x7d241a;
@@ -126,6 +151,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private makeCoin(): void {
+    if (!this.missing('coin')) return;
     const g = this.add.graphics();
     g.fillStyle(0xb8860b, 1);
     g.fillCircle(14, 14, 13);
@@ -215,6 +241,7 @@ export class BootScene extends Phaser.Scene {
 
     // 영웅 아이콘 (원형)
     HEROES.forEach((h) => {
+      if (!this.missing('hero' + h.id)) return;
       const gg = this.add.graphics();
       const dark = Phaser.Display.Color.ValueToColor(h.color).darken(30).color;
       gg.fillStyle(dark, 1);
@@ -229,6 +256,7 @@ export class BootScene extends Phaser.Scene {
 
     // 스킬 버튼 (원형, 스킬 색상)
     SKILLS.forEach((s) => {
+      if (!this.missing('skill' + s.id)) return;
       const gg = this.add.graphics();
       const dark = Phaser.Display.Color.ValueToColor(s.color).darken(35).color;
       gg.fillStyle(0x120c20, 0.9);
@@ -252,6 +280,7 @@ export class BootScene extends Phaser.Scene {
 
     // 유물 보석 (다이아몬드)
     ARTIFACTS.forEach((a) => {
+      if (!this.missing('artifact' + a.id)) return;
       const gg = this.add.graphics();
       const dark = Phaser.Display.Color.ValueToColor(a.color).darken(30).color;
       // 다이아몬드 = 위/아래 삼각형 (외곽 → 본체 → 하이라이트)
