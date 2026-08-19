@@ -203,6 +203,49 @@ export class BootScene extends Phaser.Scene {
     g.generateTexture('btn-boss', 240, 64);
     g.destroy();
 
+    // 버튼 (보스 도전 — 상단 우측용 소형)
+    g = this.add.graphics();
+    g.fillStyle(0xc0392b, 1);
+    g.fillRoundedRect(0, 0, 152, 58, 13);
+    g.fillStyle(0xffffff, 0.15);
+    g.fillRoundedRect(0, 0, 152, 26, { tl: 13, tr: 13, bl: 0, br: 0 });
+    g.lineStyle(2, 0xf5b7b1, 0.8);
+    g.strokeRoundedRect(1, 1, 150, 56, 13);
+    g.generateTexture('btn-boss-sm', 152, 58);
+    g.destroy();
+
+    // 전투 화면 플로팅 아이콘 배경 (원형)
+    g = this.add.graphics();
+    g.fillStyle(0x1d1630, 0.86);
+    g.fillCircle(38, 38, 34);
+    g.lineStyle(3, 0xf1c40f, 0.75);
+    g.strokeCircle(38, 38, 34);
+    g.generateTexture('float-btn', 76, 76);
+    g.destroy();
+
+    // 오버레이 카드 (퀘스트/랭킹)
+    g = this.add.graphics();
+    g.fillStyle(0x1d1630, 0.98);
+    g.fillRoundedRect(0, 0, 660, 580, 24);
+    g.lineStyle(3, 0x8e44ad, 1);
+    g.strokeRoundedRect(1, 1, 658, 578, 24);
+    g.generateTexture('card-lg', 660, 580);
+    g.destroy();
+
+    // 요정 (보상형 광고 캐리어)
+    g = this.add.graphics();
+    g.fillStyle(0xa9e7ff, 0.35);
+    g.fillCircle(24, 24, 23);            // 후광
+    g.fillStyle(0xffffff, 0.55);
+    g.fillEllipse(12, 18, 20, 26);       // 좌측 날개
+    g.fillEllipse(36, 18, 20, 26);       // 우측 날개
+    g.fillStyle(0xf7f3a0, 1);
+    g.fillCircle(24, 26, 11);            // 몸
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(20, 22, 4);             // 하이라이트
+    g.generateTexture('fairy', 48, 48);
+    g.destroy();
+
     // 버튼 (환생)
     g = this.add.graphics();
     g.fillStyle(0x8e44ad, 1);
@@ -314,15 +357,6 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(0xffffff, 0.08);
     g.fillRoundedRect(0, 0, 132, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
     g.generateTexture('tab-off', 132, 44);
-    g.destroy();
-
-    // 광고 보상 버튼 (오렌지)
-    g = this.add.graphics();
-    g.fillStyle(0xd35400, 1);
-    g.fillRoundedRect(0, 0, 128, 38, 10);
-    g.fillStyle(0xffffff, 0.18);
-    g.fillRoundedRect(0, 0, 128, 17, { tl: 10, tr: 10, bl: 0, br: 0 });
-    g.generateTexture('btn-ad', 128, 38);
     g.destroy();
 
     // 장비 슬롯 아이콘: 무기(검) / 갑옷(방패) / 장신구(반지)

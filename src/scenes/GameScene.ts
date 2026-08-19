@@ -5,7 +5,8 @@
 import Phaser from 'phaser';
 import {
   COMBAT_CENTER, PANEL_Y, TOP_BAR_H, COMBAT_BOTTOM,
-  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, monsterHp, zoneFor,
+  SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, FLOAT_ICON, FAIRY,
+  monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
@@ -36,6 +37,8 @@ export class GameScene extends Phaser.Scene {
   private spawnTimer: Phaser.Time.TimerEvent | null = null; // 스폰 예약 단일화
 
   private killFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private fairy!: Phaser.GameObjects.Image;
+  private fairyTimer: Phaser.Time.TimerEvent | null = null;
   private floatPool: Phaser.GameObjects.Text[] = [];
   private floatIdx = 0;
   private coinPool: Phaser.GameObjects.Image[] = [];
@@ -97,6 +100,25 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0, 0).setInteractive();
     zone.on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
 
+    // 요정: 광고 보상 캐리어. UIScene 이 'fairy-tap' 을 받아 광고를 제안한다.
+    this.fairy = this.add.image(-100, 300, 'fairy').setDepth(30).setVisible(false);
+    this.fairy.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (!this.fairy.visible) return;
+      if (this.registry.get('uiBlocking') === true) return;   // 모달 위 — UIScene 우선
+      if (this.isReservedUi(this.fairy.x, this.fairy.y)) return; // 아이콘과 겹친 순간 — 아이콘 우선
+      this.hideFairy();
+      this.game.events.emit('fairy-tap');
+      this.scheduleFairy(Phaser.Math.Between(FAIRY.minMs, FAIRY.maxMs));
+    });
+    this.scheduleFairy(FAIRY.firstMs);
+    // QA/E2E: 요정 즉시 소환 (DevTools.spawnFairy 경유)
+    this.game.events.on('fairy-force', this.flyFairy, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.fairyTimer?.remove(false);
+      this.fairyTimer = null;
+      this.game.events.off('fairy-force', this.flyFairy, this);
+    });
+
     // DPS 틱 (10Hz)
     this.time.addEvent({ delay: 100, loop: true, callback: () => this.dpsTick() });
 
@@ -125,6 +147,53 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.spawn();
+  }
+
+  // --- 요정 (보상형 광고) ---------------------------------------------------
+
+  private scheduleFairy(delay: number): void {
+    this.fairyTimer?.remove(false);
+    this.fairyTimer = this.time.delayedCall(delay, () => {
+      this.fairyTimer = null;
+      this.flyFairy();
+    });
+  }
+
+  /** 전투 영역을 좌→우(또는 우→좌)로 가로지르며 상하로 흔들린다 */
+  private flyFairy(): void {
+    const leftToRight = Math.random() < 0.5;
+    const y = Phaser.Math.Between(TOP_BAR_H + 110, COMBAT_BOTTOM - 80);
+    const from = leftToRight ? -60 : 780;
+    const to = leftToRight ? 780 : -60;
+    this.fairy.setPosition(from, y).setVisible(true).setAlpha(1);
+    this.tweens.killTweensOf(this.fairy);
+    this.tweens.add({
+      targets: this.fairy, x: to, duration: FAIRY.crossMs, ease: 'Sine.InOut',
+      onComplete: () => {
+        this.hideFairy();
+        this.scheduleFairy(Phaser.Math.Between(FAIRY.minMs, FAIRY.maxMs));
+      },
+    });
+    this.tweens.add({
+      targets: this.fairy, y: y + 46, duration: 900,
+      yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    });
+  }
+
+  private hideFairy(): void {
+    this.tweens.killTweensOf(this.fairy);
+    this.fairy.setVisible(false).setPosition(-100, 300);
+  }
+
+  /** 전투 탭이 좌측 플로팅 아이콘(UIScene) 영역으로 새지 않게 — 씬이 달라 입력이 겹친다 */
+  private isReservedUi(x: number, y: number): boolean {
+    for (let i = 0; i < FLOAT_ICON.count; i++) {
+      const cy = FLOAT_ICON.y0 + i * FLOAT_ICON.gap;
+      if (Math.abs(x - FLOAT_ICON.x) <= FLOAT_ICON.r && Math.abs(y - cy) <= FLOAT_ICON.r) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // --- 스폰 ---------------------------------------------------------------
@@ -192,6 +261,9 @@ export class GameScene extends Phaser.Scene {
   // --- 데미지 -------------------------------------------------------------
 
   private onTap(x: number, y: number): void {
+    // UIScene 의 모달/오버레이·플로팅 아이콘은 씬이 달라 이 존을 가리지 못한다
+    if (this.registry.get('uiBlocking') === true) return;
+    if (this.isReservedUi(x, y)) return;
     // 탭 파문
     const ring = this.add.image(x, y, 'ring').setDepth(25).setScale(0.4);
     this.tweens.add({

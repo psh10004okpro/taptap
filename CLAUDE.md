@@ -8,14 +8,26 @@
 ## 아키텍처 불변식
 - `src/core/` 와 `src/config.ts` 는 **Phaser import 금지** (순수 로직 계층).
 - 상태 변경은 반드시 `GameState` 메서드 경유 + 이벤트 발행. Scene 이 상태를 직접 쓰지 않는다.
-- Scene 간 통신은 `game.events` 버스 (`engage-boss`, `boss-timer`).
+- Scene 간 통신은 `game.events` 버스 (`engage-boss`, `boss-timer`, `fairy-tap`, `fairy-force`).
 - 논리 해상도 720x1280 고정, `Scale.FIT`. 좌표 하드코딩은 `config.ts` 레이아웃 상수 사용.
+- **UIScene 모달은 GameScene 입력을 가리지 못한다** (씬이 다름). 오버레이/팝업 열고 닫을 때
+  `syncBlocking()` 으로 `registry.uiBlocking` 을 갱신하고, GameScene 은 탭 처리 선두에서 이를 확인한다.
+  신규 모달을 추가하면 `syncBlocking()` 의 판정 목록에도 넣을 것.
 - 신규 이펙트는 오브젝트 풀 재사용 (`floatPool`/`coinPool` 패턴). 매 프레임 `new` 금지.
 - 텍스처는 BootScene 에서만 생성. 씬 중간 generateTexture 금지.
 
 ## 테스트 훅
 - `window.__taptap = { game, state }` — E2E 는 이 훅으로 상태를 검증한다. 제거 금지.
 - 새 기능엔 tests/game.spec.ts 에 시나리오 추가.
+
+## UI 구성 (탭타이탄2 문법)
+- 하단 5탭은 **성장 축 전용**: `[소드마스터 | 영웅 | 장비 | 펫 | 유물]`.
+  소드마스터 = 탭 공격력 + 환생 + 스킬트리. 부가 콘텐츠를 탭으로 늘리지 말 것.
+- 퀘스트/랭킹 등 부가 콘텐츠는 전투 화면 좌측 **플로팅 아이콘**(`FLOAT_ICON`)이 여는 오버레이.
+  오버레이 콘텐츠는 하단 패널 좌표계(`PANEL_Y + n`)로 배치하고 컨테이너만 `OVERLAY_DY` 로 끌어올린다.
+- 보스 도전은 상단 우측(`BOSS_BTN`), 전투 화면 중앙은 비워 둔다.
+- 보상형 광고는 요정(`FAIRY`)이 전달 — 상단 고정 광고 버튼 금지.
+- 플로팅 아이콘을 늘리면 `GameScene.isReservedUi()` 판정도 함께 갱신 (전투 탭 누수 방지).
 
 ## 밸런스 수정
 - 곡선은 전부 `src/config.ts` 의 함수(`monsterHp`, `tapCost`, `heroDps`...). UI/Scene 에 숫자 하드코딩 금지.

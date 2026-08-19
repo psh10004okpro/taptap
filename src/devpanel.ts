@@ -102,6 +102,10 @@ export function mountDevPanel(state: GameState): void {
     state.daily.date = '1970-01-01';
     state.ensureDaily();
   });
+  btn(prog, '요정 소환', () => {
+    const g = window.__taptap?.game;
+    if (g) Dev.spawnFairy(g.events);
+  });
 
   // --- 프리셋 ---
   const pre = section('상태 프리셋');

@@ -82,6 +82,11 @@ export function applyPreset(s: GameState, name: PresetName): void {
   s.emit('tutorial', s.tut); // 배너/포인터 즉시 갱신 (잔존 방지)
 }
 
+/** 요정(광고 보상) 즉시 소환. 인자는 game.events (core 는 Phaser 를 import 하지 않는다) */
+export function spawnFairy(bus: { emit(ev: string, ...args: unknown[]): void }): void {
+  bus.emit('fairy-force');
+}
+
 /** 오프라인 복귀 시뮬: lastSeen 을 과거로 되돌린 세이브를 쓰고 리로드 */
 export function simulateOffline(s: GameState, hours: number): void {
   s.save();

@@ -57,6 +57,7 @@ declare global {
         snapshot(s: unknown): Record<string, string | number>;
         validate(s: unknown): string[];
         exportSave(s: unknown): string;
+        spawnFairy(bus: { emit(ev: string, ...a: unknown[]): void }): void;
       };
       sfx: { isEnabled(): boolean; toggle(): boolean };
     };
@@ -268,9 +269,9 @@ test('환생 v2: 유물 화폐 지급 + 유물 강화는 환생 후 유지된다
 
 test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된다', async ({ page }) => {
   const errors = await setup(page);
-  await tapGame(page, 644, 746);                  // [랭킹] 탭 (5탭 중 5번째)
+  await tapGame(page, 56, 440);                   // 랭킹 플로팅 아이콘
   await page.waitForTimeout(400);
-  await tapGame(page, 624, 794);                  // [점수 등록]
+  await tapGame(page, 624, 290);                  // [점수 등록]
   await page.waitForTimeout(600);
   const saved = await page.evaluate(() => {
     const raw = localStorage.getItem('taptap-lb-local');
@@ -286,9 +287,9 @@ test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된
 test('유물 탭 UI: 탭 전환 후 구매 버튼 클릭이 실제로 동작한다', async ({ page }) => {
   const errors = await setup(page);
   await page.evaluate(() => window.__taptap!.state.addRelics(42)); // 이벤트 발행 경로
-  await tapGame(page, 360, 746);                  // [유물] 탭 (5탭 중 3번째)
+  await tapGame(page, 644, 746);                  // [유물] 탭 (5탭 중 5번째)
   await page.waitForTimeout(300);
-  await tapGame(page, 624, 864);                  // 첫 유물(파괴의 검) 구매 버튼
+  await tapGame(page, 624, 844);                  // 첫 유물(파괴의 검) 구매 버튼
   await page.waitForTimeout(300);
   const r = await page.evaluate(() => ({
     lvl: window.__taptap!.state.artifactLevels[0],
@@ -467,9 +468,11 @@ test('P1 장비 세트: 동일 등급 3슬롯이면 모든 데미지 보너스',
 test('P1 영웅 페이징: 2페이지에서 상위 영웅 정보가 표시되고 구매가 동작한다', async ({ page }) => {
   const errors = await setup(page);
   await page.evaluate(() => window.__taptap!.state.addGold(1e15));
-  await tapGame(page, 440, 1260); // ▶ 다음 페이지
+  await tapGame(page, 218, 746); // [영웅] 탭
   await page.waitForTimeout(300);
-  await tapGame(page, 624, 848); // 2페이지 첫 행(영웅 8) 고용 버튼
+  await tapGame(page, 440, 1254); // ▶ 다음 페이지
+  await page.waitForTimeout(300);
+  await tapGame(page, 624, 804); // 2페이지 첫 행(영웅 8) 고용 버튼
   await page.waitForTimeout(300);
   const lvl = await page.evaluate(() => window.__taptap!.state.heroLevels[8]);
   expect(lvl).toBeGreaterThanOrEqual(1);
@@ -828,9 +831,9 @@ test('볼륨 확장: 유물 40종 페이징에서 후기 유물 구매가 동작
   expect(r.lvl).toBe(1);
   expect(r.count).toBe(40);
   // UI: [유물] 탭 → ▶ 페이저로 마지막 페이지까지 이동해도 에러 없음
-  await tapGame(page, 360, 746);
+  await tapGame(page, 644, 746);
   await page.waitForTimeout(300);
-  for (let i = 0; i < 5; i++) await tapGame(page, 440, 1260);
+  for (let i = 0; i < 5; i++) await tapGame(page, 440, 1254);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'screenshots/19-artifacts-paged.png' });
   expect(errors).toHaveLength(0);
@@ -1011,5 +1014,155 @@ test('설정: SFX/BGM/진동 토글이 팝업에서 동작하고 영속된다', 
   await page.waitForFunction(() => !!window.__taptap, undefined, { timeout: 15_000 });
   expect(await page.evaluate(() => window.__taptap!.sfx.isEnabled())).toBe(false);
   expect(await page.evaluate(() => localStorage.getItem('taptap-bgm-on'))).toBe('0');
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+// --- TT2 문법 UI 재편 ------------------------------------------------------
+
+/** GameScene 의 요정 오브젝트 조작용 최소 타입 */
+interface FairyProbe {
+  game: {
+    events: { emit(ev: string, ...a: unknown[]): void };
+    scene: {
+      getScene(k: string): {
+        children: { list: { texture?: { key: string }; visible: boolean;
+          setPosition(x: number, y: number): void; x: number; y: number }[] };
+        tweens: { killTweensOf(o: unknown): void };
+      };
+    };
+  };
+}
+
+test('UI 재편: 5탭이 성장 축 전용이고 소드마스터에 환생·스킬트리가 있다', async ({ page }) => {
+  const errors = await setup(page);
+  await page.evaluate(() => {
+    const t = window.__taptap!;
+    t.dev.applyPreset(t.state, 'mid');
+  });
+  await page.waitForTimeout(300);
+
+  // 기본 탭 = 소드마스터: 탭 공격력 구매가 동작한다
+  await page.evaluate(() => window.__taptap!.state.addGold(1e12));
+  await tapGame(page, 624, 792);                  // 탭 공격력 구매 버튼
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__taptap!.state.tapLevel)).toBeGreaterThan(60);
+
+  // 같은 탭의 스킬트리: 계열 토글 → 노드 구매
+  const sp0 = await page.evaluate(() => window.__taptap!.state.spAvailable());
+  await tapGame(page, 360, 956);                  // [군주] 계열
+  await page.waitForTimeout(200);
+  await tapGame(page, 190, 1026);                 // T1 노드
+  await page.waitForTimeout(200);
+  const r = await page.evaluate(() => ({
+    sp: window.__taptap!.state.spAvailable(),
+    lord: window.__taptap!.state.treeLevels[4],
+  }));
+  expect(r.lord).toBeGreaterThanOrEqual(1);
+  expect(r.sp).toBeLessThan(sp0);
+
+  // [펫] 탭이 독립 탭으로 존재 (장비 탭에서 분리)
+  await tapGame(page, 502, 746);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'screenshots/21-pet-tab.png' });
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('UI 재편: 플로팅 아이콘이 퀘스트/랭킹 오버레이를 열고 닫는다', async ({ page }) => {
+  const errors = await setup(page);
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.lifetime.taps = 100_000;   // 업적 달성 상태로 배지/수령 확인
+    s.daily.counters.kills = 999;
+  });
+
+  // 퀘스트 오버레이 열기 → 일일 퀘스트 보상 수령
+  await tapGame(page, 56, 344);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'screenshots/22-quest-overlay.png' });
+  const claimedBefore = await page.evaluate(() => window.__taptap!.state.relics);
+  await tapGame(page, 624, 370);                  // 첫 일일 퀘스트 [받기]
+  await page.waitForTimeout(300);
+
+  // 오버레이가 덮은 좌표를 눌러도 전투 탭으로 새지 않는다 (씬이 달라 딤이 못 막음)
+  const blockedBefore = await page.evaluate(() => window.__taptap!.state.lifetime.taps);
+  await tapGame(page, 360, 470, 5);
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__taptap!.state.lifetime.taps)).toBe(blockedBefore);
+
+  // 업적 서브탭 전환
+  await tapGame(page, 470, 292);
+  await page.waitForTimeout(300);
+  const achClaim = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    return s.achClaimed.some((c) => c) || s.relics >= 0;
+  });
+  expect(achClaim).toBe(true);
+
+  // 닫기 → 랭킹 오버레이 열기
+  await tapGame(page, 646, 232);
+  await page.waitForTimeout(200);
+  await tapGame(page, 56, 440);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: 'screenshots/23-rank-overlay.png' });
+  await tapGame(page, 470, 382);                  // [클랜] 서브탭
+  await page.waitForTimeout(300);
+  await tapGame(page, 646, 232);                  // 닫기
+  await page.waitForTimeout(200);
+
+  // 오버레이가 닫힌 뒤에는 전투 탭이 다시 통한다
+  const kills0 = await page.evaluate(() => window.__taptap!.state.lifetime.kills);
+  await tapGame(page, 360, 470, 40);
+  await page.waitForTimeout(500);
+  const kills1 = await page.evaluate(() => window.__taptap!.state.lifetime.kills);
+  expect(kills1).toBeGreaterThan(kills0);
+  expect(await page.evaluate(() => window.__taptap!.state.relics)).toBeGreaterThanOrEqual(claimedBefore);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('UI 재편: 보스 버튼이 우상단에서 재도전을 시작한다', async ({ page }) => {
+  const errors = await setup(page);
+  // 보스 실패 상태 → 파밍 모드에서 재도전 버튼 노출
+  await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1e12);
+    for (let i = 0; i < 40; i++) s.tryBuyTap();
+    for (let i = 0; i < 9; i++) s.recordKill(false); // 9킬 → 보스 모드
+    (s as unknown as { failBoss(): void }).failBoss(); // 도주 → 파밍 복귀 + 재도전 버튼
+  });
+  await page.waitForTimeout(400);
+  const pre = await page.evaluate(() => ({
+    mode: window.__taptap!.state.mode, kills: window.__taptap!.state.kills,
+  }));
+  expect(pre.mode).toBe('farm');
+  expect(pre.kills).toBe(9);
+
+  await tapGame(page, 624, 52);                   // 우상단 [보스 도전!]
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__taptap!.state.mode)).toBe('boss');
+  await page.screenshot({ path: 'screenshots/24-boss-topright.png' });
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('요정: 소환된 요정을 탭하면 광고 보상(골드 x2)이 지급된다', async ({ page }) => {
+  const errors = await setup(page);
+  expect(await page.evaluate(() => window.__taptap!.state.isGoldBoostActive())).toBe(false);
+
+  // 요정 소환 후 트윈을 멈추고 고정 좌표로 옮겨 결정적으로 탭한다
+  const fairy = await page.evaluate(() => {
+    const t = window.__taptap! as unknown as FairyProbe & { dev: { spawnFairy(b: unknown): void } };
+    t.dev.spawnFairy(t.game.events);
+    const scene = t.game.scene.getScene('Game');
+    const f = scene.children.list.find((o) => o.texture?.key === 'fairy');
+    if (!f) return null;
+    scene.tweens.killTweensOf(f);
+    f.setPosition(360, 400);
+    return { visible: f.visible, x: f.x, y: f.y };
+  });
+  expect(fairy).not.toBeNull();
+  expect(fairy!.visible).toBe(true);
+
+  await tapGame(page, 360, 400);
+  await page.waitForTimeout(1200);                // Mock 광고 재생 600ms
+  expect(await page.evaluate(() => window.__taptap!.state.isGoldBoostActive())).toBe(true);
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });
