@@ -79,6 +79,7 @@ export function applyPreset(s: GameState, name: PresetName): void {
   s.emit('stage', s.stage, s.kills);
   s.emit('upgrade');
   s.emit('quest');
+  s.emit('tutorial', s.tut); // 배너/포인터 즉시 갱신 (잔존 방지)
 }
 
 /** 오프라인 복귀 시뮬: lastSeen 을 과거로 되돌린 세이브를 쓰고 리로드 */

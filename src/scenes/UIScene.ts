@@ -552,19 +552,20 @@ export class UIScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
     }).setOrigin(0.5));
     PETS.forEach((pt, i) => {
-      const x = 85 + i * 110;
+      // 12마리 1줄 — 피치 58px 로 720 폭 안에 전부 표시
+      const x = 40 + i * 58;
       const y = PANEL_Y + 452;
       const g = this.add.graphics({ x, y });
       const dark = Phaser.Display.Color.ValueToColor(pt.color).darken(30).color;
-      g.fillStyle(dark, 1).fillCircle(0, 0, 26);
-      g.fillStyle(pt.color, 1).fillCircle(0, -1, 22);
+      g.fillStyle(dark, 1).fillCircle(0, 0, 20);
+      g.fillStyle(pt.color, 1).fillCircle(0, -1, 17);
       c.add(g);
       c.add(this.add.text(x, y - 2, pt.glyph, {
-        fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold',
+        fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
         stroke: '#22182f', strokeThickness: 3,
       }).setOrigin(0.5));
-      const lvl = this.add.text(x, y + 40, '', {
-        fontFamily: FONT, fontSize: '14px', color: '#c9b8e8',
+      const lvl = this.add.text(x, y + 32, '', {
+        fontFamily: FONT, fontSize: '12px', color: '#c9b8e8',
       }).setOrigin(0.5);
       c.add(lvl);
       this.petTexts.push(lvl);
@@ -1305,7 +1306,8 @@ export class UIScene extends Phaser.Scene {
     this.refreshTourneyCard();
     PETS.forEach((pt, i) => {
       const lvl = st.petLevels[pt.id];
-      this.petTexts[i].setText(lvl > 0 ? `${pt.name} Lv.${lvl}` : `${pt.name} —`)
+      // 피치 58px — 이름은 겹치므로 레벨만 (아이콘 글리프가 식별자)
+      this.petTexts[i].setText(lvl > 0 ? `Lv.${lvl}` : '—')
         .setColor(lvl > 0 ? '#ffffff' : '#6f6488');
     });
     this.rankToggle.forEach((t, i) => t.img.setTexture(i === this.rankSubTab ? 'tab-on' : 'tab-off'));
