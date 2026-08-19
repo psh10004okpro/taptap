@@ -1,0 +1,21 @@
+{
+  "name": "taptap-titans",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Portrait-mode idle tap RPG built with Phaser 4",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "typescript": "^5.9.2",
+    "vite": "^8.2.1"
+  }
+}
