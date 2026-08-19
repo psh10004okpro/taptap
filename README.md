@@ -63,6 +63,7 @@ python3 tools/art/process.py      # 후처리 → public/assets/ + manifest.json
 
 | 문서 | 내용 |
 |---|---|
+| `docs/HANDOFF.md` | **로컬 Claude Code 인수인계 프롬프트 + 남은 작업 목록** |
 | `docs/TESTING.md` | E2E·QA 패널·몽키·시뮬 사용법, 주요 UI 좌표표 |
 | `docs/BALANCE.md` | 곡선 설계 근거, 벽 위치, 마나 미도입 사유 |
 | `docs/CONTENT_GAP.md` | 탭타이탄2 대비 콘텐츠 격차 |
