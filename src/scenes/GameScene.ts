@@ -4,8 +4,8 @@
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
 import {
-  COMBAT_CENTER, PANEL_Y, TOP_BAR_H, BOSS_TIME_LIMIT,
-  CRIT_CHANCE, CRIT_MULT, MONSTER_NAMES, BOSS_NAMES, monsterHp,
+  COMBAT_CENTER, PANEL_Y, TOP_BAR_H,
+  SHADOW_CLONE_TAPS_PER_SEC, MONSTER_NAMES, BOSS_NAMES, monsterHp,
 } from '../config';
 import { GameState } from '../core/GameState';
 import { fmt } from '../core/format';
@@ -26,6 +26,8 @@ export class GameScene extends Phaser.Scene {
   private dead = false;
   private isBoss = false;
   private bossDeadline = 0;
+  private bossLimit = 1;   // 이번 보스전의 제한시간 (유물 반영, 스폰 시 고정)
+  private cloneTick = 0;   // 분신술 자동 탭 타이밍
 
   private floatPool: Phaser.GameObjects.Text[] = [];
   private floatIdx = 0;
@@ -69,8 +71,9 @@ export class GameScene extends Phaser.Scene {
       this.coinPool.push(this.add.image(0, 0, 'coin').setVisible(false).setDepth(19));
     }
 
-    // 탭 입력: 전투 영역만
-    const zone = this.add.zone(0, TOP_BAR_H, 720, PANEL_Y - TOP_BAR_H)
+    // 탭 입력: 전투 영역만 (스킬바 y=646 위쪽 — UI 탭이 공격으로 새지 않게)
+    const COMBAT_BOTTOM = 646;
+    const zone = this.add.zone(0, TOP_BAR_H, 720, COMBAT_BOTTOM - TOP_BAR_H)
       .setOrigin(0, 0).setInteractive();
     zone.on('pointerdown', (p: Phaser.Input.Pointer) => this.onTap(p.x, p.y));
 
@@ -104,7 +107,8 @@ export class GameScene extends Phaser.Scene {
     if (this.isBoss) {
       this.monster.setTexture('boss');
       this.nameText.setText(BOSS_NAMES[(st.stage - 1) % BOSS_NAMES.length]).setColor('#ff9c9c');
-      this.bossDeadline = this.time.now + BOSS_TIME_LIMIT;
+      this.bossLimit = st.bossTimeLimit();
+      this.bossDeadline = this.time.now + this.bossLimit;
     } else {
       const idx = (st.stage * 7 + st.kills * 3) % 6;
       this.monster.setTexture('monster' + idx);
@@ -134,8 +138,8 @@ export class GameScene extends Phaser.Scene {
     });
     if (this.dead) return;
 
-    const crit = Math.random() < CRIT_CHANCE;
-    const dmg = this.state.tapDamage() * (crit ? CRIT_MULT : 1);
+    const crit = Math.random() < this.state.critChance();
+    const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
     this.applyDamage(dmg, crit, x, Math.min(y, PANEL_Y - 120));
     // 몬스터 반동
     this.tweens.add({
@@ -148,10 +152,27 @@ export class GameScene extends Phaser.Scene {
     // 보스 타이머 갱신
     if (this.isBoss && !this.dead && this.bossDeadline > 0) {
       const remain = this.bossDeadline - this.time.now;
-      this.game.events.emit('boss-timer', Math.max(0, remain / BOSS_TIME_LIMIT));
+      this.game.events.emit('boss-timer', Math.max(0, remain / this.bossLimit));
       if (remain <= 0) return this.bossEscape();
     }
     if (this.dead) return;
+
+    // 분신술: 10Hz 틱에서 초당 SHADOW_CLONE_TAPS_PER_SEC 회 자동 탭
+    if (this.state.isSkillActive(3)) {
+      this.cloneTick += 1;
+      if (this.cloneTick >= Math.max(1, Math.round(10 / SHADOW_CLONE_TAPS_PER_SEC))) {
+        this.cloneTick = 0;
+        const crit = Math.random() < this.state.critChance();
+        const dmg = Math.round(this.state.tapDamage() * (crit ? this.state.critMult() : 1));
+        this.applyDamage(
+          dmg, crit,
+          COMBAT_CENTER.x + Phaser.Math.Between(-70, 70),
+          COMBAT_CENTER.y - Phaser.Math.Between(60, 160),
+        );
+        if (this.dead) return;
+      }
+    }
+
     const dps = this.state.totalDps();
     if (dps <= 0) return;
 

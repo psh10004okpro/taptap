@@ -19,3 +19,10 @@
 
 ## 밸런스 수정
 - 곡선은 전부 `src/config.ts` 의 함수(`monsterHp`, `tapCost`, `heroDps`...). UI/Scene 에 숫자 하드코딩 금지.
+
+## 신규 시스템 규칙 (스킬/유물/랭킹)
+- 스킬 쿨다운은 epoch ms (`Date.now()`) 기준 — 오프라인에도 흐른다. Phaser 시계(`time.now`) 와 혼용 금지.
+- 유물은 소비 화폐: `relicsEarned` 가 누적 획득 기준. 환생 보상 = `relicsFor(maxStage) - relicsEarned`.
+- 랭킹 쓰기는 Edge Function 경유만. 클라이언트에서 leaderboard 테이블 직접 insert/update 금지.
+- `relicsFor` 곡선 변경 시 `supabase/functions/submit-score/index.ts` 의 사본도 함께 갱신할 것.
+- 세이브 스키마 변경 시 v 를 올리고 load() 에 하위호환 마이그레이션을 추가한다.

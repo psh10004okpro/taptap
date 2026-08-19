@@ -9,10 +9,15 @@ declare global {
       game: unknown;
       state: {
         gold: number; stage: number; kills: number; tapLevel: number;
-        heroLevels: number[]; mode: string;
-        tapDamage(): number; tapCost(): number;
+        maxStage: number; relics: number; relicsEarned: number;
+        heroLevels: number[]; artifactLevels: number[]; mode: string;
+        tapDamage(): number; tapCost(): number; totalDps(): number;
         tryBuyTap(): boolean; tryBuyHero(id: number): boolean;
-        addGold(n: number): void;
+        tryBuyArtifact(id: number): boolean; artifactCost(id: number): number;
+        tryActivateSkill(id: number): boolean; isSkillActive(id: number): boolean;
+        skillCooldownLeft(id: number): number; isSkillUnlocked(id: number): boolean;
+        canPrestige(): boolean; prestigeGain(): number; doPrestige(): boolean;
+        addGold(n: number): void; save(): void;
       };
     };
   }
@@ -132,6 +137,114 @@ test('보스 진행: 9킬 후 보스 모드로 전환된다', async ({ page }) =
   const mode = await page.evaluate(() => window.__taptap!.state.mode);
   expect(mode).toBe('boss');
   await page.screenshot({ path: 'screenshots/04-boss.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('스킬: 해금 조건·발동 효과·쿨다운이 동작한다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    const lockedTry = s.tryActivateSkill(0);     // maxStage 1 → 해금 전
+    s.maxStage = 30;                             // 화염검(5)~분신술(20) 전부 해금
+    const dmg0 = s.tapDamage();
+    const ok = s.tryActivateSkill(0);            // 화염검: 탭 데미지 x3
+    const dmg1 = s.tapDamage();
+    const again = s.tryActivateSkill(0);         // 쿨다운 중 재발동 불가
+    return {
+      lockedTry, ok, again,
+      active: s.isSkillActive(0),
+      cd: s.skillCooldownLeft(0),
+      tripled: dmg1 >= dmg0 * 3 - 1,             // 반올림 여유
+      unlocked3: s.isSkillUnlocked(3),
+    };
+  });
+  expect(r.lockedTry).toBe(false);
+  expect(r.ok).toBe(true);
+  expect(r.again).toBe(false);
+  expect(r.active).toBe(true);
+  expect(r.cd).toBeGreaterThan(0);
+  expect(r.tripled).toBe(true);
+  expect(r.unlocked3).toBe(true);
+  await page.screenshot({ path: 'screenshots/05-skills.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('유물: 구매로 유물이 차감되고 영구 보너스가 적용된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.addGold(1_000_000);
+    for (let i = 0; i < 20; i++) s.tryBuyTap();  // 반올림에 묻히지 않게 기반 데미지 확보
+    s.relics = 100;
+    const dmg0 = s.tapDamage();
+    const cost = s.artifactCost(0);
+    const ok = s.tryBuyArtifact(0);              // 파괴의 검: 탭 +25%
+    const noRelics = (() => { s.relics = 0; return s.tryBuyArtifact(0); })();
+    return {
+      ok, noRelics, cost,
+      dmgUp: s.tapDamage() > dmg0,
+      lvl: s.artifactLevels[0],
+    };
+  });
+  expect(r.ok).toBe(true);
+  expect(r.noRelics).toBe(false);
+  expect(r.dmgUp).toBe(true);
+  expect(r.lvl).toBe(1);
+  expect(errors).toHaveLength(0);
+});
+
+test('환생 v2: 유물 화폐 지급 + 유물 강화는 환생 후 유지된다', async ({ page }) => {
+  const errors = await setup(page);
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.maxStage = 40;
+    s.relics = 50;
+    s.tryBuyArtifact(1);                          // 용맹의 깃발 1강
+    const artBefore = s.artifactLevels[1];
+    const relicsBefore = s.relics;
+    const gain = s.prestigeGain();
+    const can = s.canPrestige();
+    const ok = s.doPrestige();
+    return {
+      can, ok, gain,
+      relicsAfter: s.relics,
+      expected: relicsBefore + gain,
+      artKept: s.artifactLevels[1] === artBefore,
+      reset: s.stage === 1 && s.gold === 0 && s.tapLevel === 0,
+    };
+  });
+  expect(r.can).toBe(true);
+  expect(r.ok).toBe(true);
+  expect(r.gain).toBeGreaterThan(0);
+  expect(r.relicsAfter).toBe(r.expected);
+  expect(r.artKept).toBe(true);
+  expect(r.reset).toBe(true);
+  expect(errors).toHaveLength(0);
+});
+
+test('랭킹(로컬 모드): 탭 전환 후 점수 등록이 로컬에 기록된다', async ({ page }) => {
+  const errors = await setup(page);
+  await tapGame(page, 450, 746);                  // [랭킹] 탭
+  await page.waitForTimeout(400);
+  await tapGame(page, 624, 794);                  // [점수 등록]
+  await page.waitForTimeout(600);
+  const saved = await page.evaluate(() => {
+    const raw = localStorage.getItem('taptap-lb-local');
+    return raw ? JSON.parse(raw) as { name: string; stage: number } : null;
+  });
+  expect(saved).not.toBeNull();
+  expect(saved!.stage).toBeGreaterThanOrEqual(1);
+  expect(saved!.name.length).toBeGreaterThanOrEqual(2);
+  await page.screenshot({ path: 'screenshots/06-ranking.png' });
+  expect(errors).toHaveLength(0);
+});
+
+test('유물 탭 UI: 목록과 보유 유물이 표시된다', async ({ page }) => {
+  const errors = await setup(page);
+  await page.evaluate(() => { window.__taptap!.state.relics = 42; });
+  await tapGame(page, 290, 746);                  // [유물] 탭
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'screenshots/07-artifacts.png' });
   expect(errors).toHaveLength(0);
 });
 

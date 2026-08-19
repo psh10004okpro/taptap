@@ -6,13 +6,18 @@
 //   'gold'          (gold: number)               골드 변경
 //   'stage'         (stage, kills)               스테이지/처치수 변경
 //   'mode'          (mode: Mode)                 farm <-> boss 전환
-//   'upgrade'                                    탭/영웅 레벨 변경
+//   'upgrade'                                    탭/영웅/유물 레벨 변경
+//   'skill'         (id: number)                 스킬 발동
 //   'prestige'      (relics: number)             환생 완료
 // ---------------------------------------------------------------------------
 import {
-  HEROES, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
-  OFFLINE_CAP_SEC, OFFLINE_RATE,
-  tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, relicMult,
+  HEROES, SKILLS, ARTIFACTS, MONSTERS_PER_STAGE, PRESTIGE_MIN_STAGE,
+  OFFLINE_CAP_SEC, OFFLINE_RATE, BOSS_TIME_LIMIT,
+  BASE_CRIT_CHANCE, BASE_CRIT_MULT,
+  SKILL_TAP_MULT, SKILL_DPS_MULT, SKILL_GOLD_MULT,
+  ARTIFACT_TAP_PER_LVL, ARTIFACT_DPS_PER_LVL, ARTIFACT_GOLD_PER_LVL,
+  ARTIFACT_CRIT_CHANCE_PER_LVL, ARTIFACT_CRIT_MULT_PER_LVL, ARTIFACT_BOSS_TIME_PER_LVL,
+  tapDamageAt, tapCost, heroCost, heroDps, killGold, relicsFor, artifactCost,
 } from '../config';
 
 export type Mode = 'farm' | 'boss';
@@ -26,6 +31,11 @@ interface SaveData {
   tapLevel: number;
   heroLevels: number[];
   relics: number;
+  relicsEarned: number;
+  artifactLevels: number[];
+  skillReadyAt: number[];
+  skillActiveUntil: number[];
+  playerName: string;
   bossFailed: boolean;
   lastSeen: number;
 }
@@ -56,7 +66,15 @@ export class GameState extends Emitter {
   maxStage = 1;
   tapLevel = 0;
   heroLevels: number[] = HEROES.map(() => 0);
+  /** 소지 유물 (환생 화폐) */
   relics = 0;
+  /** 지금까지 환생으로 얻은 누적 유물 (다음 환생 보상 계산 기준) */
+  relicsEarned = 0;
+  artifactLevels: number[] = ARTIFACTS.map(() => 0);
+  /** 스킬 재사용 가능 시각 / 효과 종료 시각 (epoch ms — 오프라인에도 흐름) */
+  skillReadyAt: number[] = SKILLS.map(() => 0);
+  skillActiveUntil: number[] = SKILLS.map(() => 0);
+  playerName = '';
   mode: Mode = 'farm';
   bossFailed = false;
   /** 마지막 세이브 시각 — 오프라인 보상 계산용 */
@@ -64,32 +82,93 @@ export class GameState extends Emitter {
 
   // --- 파생 값 ------------------------------------------------------------
 
+  private artifactMult(perLvl: number, id: number): number {
+    return 1 + this.artifactLevels[id] * perLvl;
+  }
+
   tapDamage(): number {
-    return Math.round(tapDamageAt(this.tapLevel) * relicMult(this.relics));
+    let dmg = tapDamageAt(this.tapLevel) * this.artifactMult(ARTIFACT_TAP_PER_LVL, 0);
+    if (this.isSkillActive(0)) dmg *= SKILL_TAP_MULT;
+    return Math.max(1, Math.round(dmg));
   }
 
   totalDps(): number {
     let dps = 0;
     for (const h of HEROES) dps += heroDps(h, this.heroLevels[h.id]);
-    return dps * relicMult(this.relics);
+    dps *= this.artifactMult(ARTIFACT_DPS_PER_LVL, 1);
+    if (this.isSkillActive(1)) dps *= SKILL_DPS_MULT;
+    return dps;
+  }
+
+  goldMult(): number {
+    let m = this.artifactMult(ARTIFACT_GOLD_PER_LVL, 2);
+    if (this.isSkillActive(2)) m *= SKILL_GOLD_MULT;
+    return m;
+  }
+
+  critChance(): number {
+    return Math.min(0.5, BASE_CRIT_CHANCE + this.artifactLevels[3] * ARTIFACT_CRIT_CHANCE_PER_LVL);
+  }
+
+  critMult(): number {
+    return BASE_CRIT_MULT + this.artifactLevels[4] * ARTIFACT_CRIT_MULT_PER_LVL;
+  }
+
+  bossTimeLimit(): number {
+    return BOSS_TIME_LIMIT + this.artifactLevels[5] * ARTIFACT_BOSS_TIME_PER_LVL;
   }
 
   tapCost(): number { return tapCost(this.tapLevel); }
   heroCost(id: number): number { return heroCost(HEROES[id], this.heroLevels[id]); }
   heroDps(id: number): number {
-    return heroDps(HEROES[id], this.heroLevels[id]) * relicMult(this.relics);
+    return heroDps(HEROES[id], this.heroLevels[id])
+      * this.artifactMult(ARTIFACT_DPS_PER_LVL, 1)
+      * (this.isSkillActive(1) ? SKILL_DPS_MULT : 1);
   }
 
   prestigeRelics(): number { return relicsFor(this.maxStage); }
+  prestigeGain(): number { return Math.max(0, this.prestigeRelics() - this.relicsEarned); }
   canPrestige(): boolean {
-    return this.maxStage >= PRESTIGE_MIN_STAGE && this.prestigeRelics() > this.relics;
+    return this.maxStage >= PRESTIGE_MIN_STAGE && this.prestigeGain() > 0;
+  }
+
+  // --- 스킬 ---------------------------------------------------------------
+
+  isSkillUnlocked(id: number): boolean {
+    return this.maxStage >= SKILLS[id].unlockStage;
+  }
+
+  isSkillActive(id: number): boolean {
+    return Date.now() < this.skillActiveUntil[id];
+  }
+
+  /** 남은 쿨다운 ms (0 = 사용 가능) */
+  skillCooldownLeft(id: number): number {
+    return Math.max(0, this.skillReadyAt[id] - Date.now());
+  }
+
+  /** 남은 지속시간 ms (0 = 비활성) */
+  skillActiveLeft(id: number): number {
+    return Math.max(0, this.skillActiveUntil[id] - Date.now());
+  }
+
+  tryActivateSkill(id: number): boolean {
+    if (!this.isSkillUnlocked(id)) return false;
+    if (this.skillCooldownLeft(id) > 0) return false;
+    const now = Date.now();
+    const def = SKILLS[id];
+    this.skillActiveUntil[id] = now + def.duration;
+    this.skillReadyAt[id] = now + def.cooldown;
+    this.emit('skill', id);
+    this.emit('upgrade'); // DPS/탭뎀 표기 갱신
+    return true;
   }
 
   // --- 전투 진행 -----------------------------------------------------------
 
   /** 몬스터 처치 처리. 골드 지급 + 진행/보스 전환. */
   recordKill(isBoss: boolean): void {
-    this.addGold(killGold(this.stage, isBoss));
+    this.addGold(Math.round(killGold(this.stage, isBoss) * this.goldMult()));
     if (isBoss) {
       this.stage += 1;
       this.maxStage = Math.max(this.maxStage, this.stage);
@@ -153,21 +232,42 @@ export class GameState extends Emitter {
     return true;
   }
 
+  artifactCost(id: number): number {
+    return artifactCost(ARTIFACTS[id], this.artifactLevels[id]);
+  }
+
+  isArtifactMaxed(id: number): boolean {
+    const max = ARTIFACTS[id].maxLevel;
+    return max > 0 && this.artifactLevels[id] >= max;
+  }
+
+  tryBuyArtifact(id: number): boolean {
+    if (this.isArtifactMaxed(id)) return false;
+    const cost = this.artifactCost(id);
+    if (this.relics < cost) return false;
+    this.relics -= cost;
+    this.artifactLevels[id] += 1;
+    this.emit('upgrade');
+    return true;
+  }
+
   // --- 환생 ----------------------------------------------------------------
 
   doPrestige(): boolean {
     if (!this.canPrestige()) return false;
-    const relics = this.prestigeRelics();
+    const gain = this.prestigeGain();
     this.gold = 0;
     this.stage = 1;
     this.kills = 0;
     this.tapLevel = 0;
     this.heroLevels = HEROES.map(() => 0);
-    this.relics = relics;
+    this.relics += gain;
+    this.relicsEarned = this.prestigeRelics();
     this.bossFailed = false;
     this.mode = 'farm';
+    // 유물(artifactLevels)·스킬 쿨다운·이름은 유지
     this.save();
-    this.emit('prestige', relics);
+    this.emit('prestige', gain);
     this.emit('gold', this.gold);
     this.emit('stage', this.stage, this.kills);
     this.emit('upgrade');
@@ -180,7 +280,7 @@ export class GameState extends Emitter {
   save(): void {
     this.lastSeen = Date.now();
     const data: SaveData = {
-      v: 1,
+      v: 2,
       gold: this.gold,
       stage: this.stage,
       kills: this.kills,
@@ -188,6 +288,11 @@ export class GameState extends Emitter {
       tapLevel: this.tapLevel,
       heroLevels: this.heroLevels,
       relics: this.relics,
+      relicsEarned: this.relicsEarned,
+      artifactLevels: this.artifactLevels,
+      skillReadyAt: this.skillReadyAt,
+      skillActiveUntil: this.skillActiveUntil,
+      playerName: this.playerName,
       bossFailed: this.bossFailed,
       lastSeen: this.lastSeen,
     };
@@ -210,6 +315,12 @@ export class GameState extends Emitter {
       this.tapLevel = d.tapLevel ?? 0;
       this.heroLevels = HEROES.map((h) => d.heroLevels?.[h.id] ?? 0);
       this.relics = d.relics ?? 0;
+      // v1 → v2: 기존 소지 유물은 이미 "획득한" 것으로 간주해 이중 지급을 막는다
+      this.relicsEarned = d.relicsEarned ?? this.relics;
+      this.artifactLevels = ARTIFACTS.map((a) => d.artifactLevels?.[a.id] ?? 0);
+      this.skillReadyAt = SKILLS.map((s) => d.skillReadyAt?.[s.id] ?? 0);
+      this.skillActiveUntil = SKILLS.map((s) => d.skillActiveUntil?.[s.id] ?? 0);
+      this.playerName = d.playerName ?? '';
       this.bossFailed = d.bossFailed ?? false;
       // 보스전 도중 저장이었다면 파밍부터 재개
       this.mode = 'farm';
@@ -222,7 +333,7 @@ export class GameState extends Emitter {
 
   /** 오프라인 보상 골드 계산 (지급은 호출측에서) */
   offlineGold(awaySec: number): number {
-    return Math.floor(this.totalDps() * awaySec * OFFLINE_RATE);
+    return Math.floor(this.totalDps() * awaySec * OFFLINE_RATE * this.goldMult());
   }
 
   static hasSave(): boolean {

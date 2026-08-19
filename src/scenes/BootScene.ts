@@ -2,7 +2,7 @@
 // BootScene: 외부 에셋 없이 모든 텍스처를 Graphics 로 절차 생성한다.
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES } from '../config';
+import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config';
 
 const MONSTER_COLORS = [0x6fcf5a, 0x5aa8e8, 0xd86fd4, 0xe8a05a, 0x8a7de8, 0xe85a72];
 
@@ -218,6 +218,58 @@ export class BootScene extends Phaser.Scene {
       gg.generateTexture('hero' + h.id, 42, 42);
       gg.destroy();
     });
+
+    // 스킬 버튼 (원형, 스킬 색상)
+    SKILLS.forEach((s) => {
+      const gg = this.add.graphics();
+      const dark = Phaser.Display.Color.ValueToColor(s.color).darken(35).color;
+      gg.fillStyle(0x120c20, 0.9);
+      gg.fillCircle(38, 38, 37);
+      gg.fillStyle(dark, 1);
+      gg.fillCircle(38, 38, 33);
+      gg.fillStyle(s.color, 1);
+      gg.fillCircle(38, 36, 29);
+      gg.fillStyle(0xffffff, 0.25);
+      gg.fillEllipse(30, 26, 20, 12);
+      gg.generateTexture('skill' + s.id, 76, 76);
+      gg.destroy();
+    });
+
+    // 스킬 활성 링
+    g = this.add.graphics();
+    g.lineStyle(5, 0x2ecc71, 1);
+    g.strokeCircle(42, 42, 39);
+    g.generateTexture('skill-ring', 84, 84);
+    g.destroy();
+
+    // 유물 보석 (다이아몬드)
+    ARTIFACTS.forEach((a) => {
+      const gg = this.add.graphics();
+      const dark = Phaser.Display.Color.ValueToColor(a.color).darken(30).color;
+      // 다이아몬드 = 위/아래 삼각형 (외곽 → 본체 → 하이라이트)
+      gg.fillStyle(dark, 1);
+      gg.fillTriangle(22, 2, 42, 22, 2, 22);
+      gg.fillTriangle(2, 22, 42, 22, 22, 42);
+      gg.fillStyle(a.color, 1);
+      gg.fillTriangle(22, 6, 38, 22, 6, 22);
+      gg.fillTriangle(6, 22, 38, 22, 22, 38);
+      gg.fillStyle(0xffffff, 0.35);
+      gg.fillTriangle(22, 9, 30, 17, 14, 17);
+      gg.generateTexture('artifact' + a.id, 44, 44);
+      gg.destroy();
+    });
+
+    // 패널 탭 (활성/비활성)
+    g = this.add.graphics();
+    g.fillStyle(0x8e44ad, 1);
+    g.fillRoundedRect(0, 0, 150, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.generateTexture('tab-on', 150, 44);
+    g.destroy();
+    g = this.add.graphics();
+    g.fillStyle(0xffffff, 0.08);
+    g.fillRoundedRect(0, 0, 150, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    g.generateTexture('tab-off', 150, 44);
+    g.destroy();
 
     // 오버레이 딤
     g = this.add.graphics();
