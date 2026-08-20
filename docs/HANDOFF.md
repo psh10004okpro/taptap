@@ -76,15 +76,21 @@ Phaser 4 + TypeScript + Vite 로 만든 모바일 세로형(720x1280) 방치 탭
 | 게임 시스템 | 완료 | 전투·성장·환생·스킬트리·펫·장비·퀘스트·업적·토너먼트·시즌·클랜보스·BM |
 | UI (탭타이탄2 문법) | 완료 | 성장 5탭 + 플로팅 오버레이 + 요정 광고 + UI 접기 |
 | 사운드/연출/온보딩 | 완료 | 절차 합성 SFX 13종 + BGM, 파티클, 5단계 튜토리얼 |
-| 테스트/CI | 완료 | E2E 46 + 몽키 + 밸런스 시뮬 + GitHub Actions |
-| **아트** | **미착수** | 파이프라인만 완성 (API 가 원격 세션에서 차단됨) |
-| **Supabase 실배포** | **미검증** | 코드는 있으나 원격 경로 실행 이력 없음 |
-| **실 SDK (광고/결제)** | **미착수** | Mock 프로바이더만 |
-| **레이드/카드** | **설계만** | 서버 선행 |
-| 다국어 | 미착수 | 문구가 한국어 하드코딩 |
+| 테스트/CI | 완료 | E2E 50 + 몽키 + 밸런스 시뮬 + GitHub Actions |
+| 아트 | 완료 | 다크 판타지 90종 + 절차 생성 폴백. 앱 아이콘·스플래시·스토어 이미지 |
+| 다국어 | 완료 | 한국어/영어 오버레이 (`docs/I18N.md`) |
+| Supabase 배포 | **자격증명 대기** | migrations·RLS 는 실 Postgres 로 검증 완료(`npm run verify:migrations`). 원격 배포 후 `npm run verify:supabase -- --slow` |
+| 광고 SDK | **계정 대기** | AdMobProvider 구현 완료. AdMob 앱/단위 ID 만 교체하면 동작 |
+| 결제 SDK | **플러그인 미선택** | 서버 검증(ServerVerifiedIapProvider)은 구현. StorePurchase 어댑터만 필요 |
+| 안드로이드 실기기 | **툴체인 대기** | 이 맥에 JDK 17·Android SDK 없음. cap sync·프레임 측정은 완료 |
+| 레이드/카드 | 설계만 | 서버 선행 |
 
 ## 로컬 환경 요구사항
 
 - Node 22 이상 (밸런스 시뮬이 네이티브 TS 실행 사용)
 - `npm install` 후 `npx playwright install chromium` (E2E 최초 1회)
-- 아트 생성 시 `pip install requests pillow`
+- 아트 재생성 시 `pip install requests pillow`
+- migrations 검증에 Docker (`npm run verify:migrations`)
+- 안드로이드 빌드에 JDK 17 + Android SDK 34+
+
+출시까지 남은 것은 `docs/PLAY_RELEASE.md` 체크리스트가 단일 출처다.
