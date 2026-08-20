@@ -20,42 +20,34 @@ Phaser 4 + TypeScript + Vite 로 만든 모바일 세로형(720x1280) 방치 탭
 지금 남은 건 (1) 실제 아트 (2) 서버 실배포 (3) 스토어 SDK 연동 세 가지다.
 게임 시스템·UI·테스트·CI 는 이미 완성돼 있으니 갈아엎지 말고 그 위에 붙여라.
 
-# 현재 상태
+# 현재 상태 (2026-08-20)
 완료: 전투/성장/환생/스킬트리(18노드)/영웅24/유물40/펫12/장비/일일퀘스트/업적20/
-      주말토너먼트/시즌/클랜보스/보석BM, 탭타이탄2식 UI(성장 5탭 + 플로팅 오버레이 +
-      우상단 보스 + 요정 광고 + UI 접기), 절차합성 사운드+BGM, 5단계 온보딩,
-      E2E 46종 + 몽키 + 밸런스 시뮬 + GitHub Actions CI
-미완: 아트(절차 생성 플레이스홀더), Supabase 원격 경로 미검증, 광고/결제 Mock,
-      레이드+카드(설계만), 다국어(한국어 하드코딩)
+      주말토너먼트/시즌/클랜보스/보석BM, 탭타이탄2식 UI, 절차합성 사운드+BGM, 온보딩,
+      **다크 판타지 아트 90종**(+앱 아이콘·스플래시·스토어 자산, 절차 생성 폴백 유지),
+      **다국어 한/영**(오버레이 방식, 한국어가 폴백 — docs/I18N.md),
+      안전영역·백그라운드 복귀 정산·오디오 자동재생, E2E 54종 + 몽키 + 시뮬 + CI(그린)
 
-# 진행 순서
-0) 먼저 CLAUDE.md / README.md / docs/CONTENT_GAP.md 를 읽고
-   `npm run build && npm test` 로 그린인지 확인한 뒤 현재 상태를 요약해줘.
-   여기까지는 코드를 수정하지 마.
+막힌 것 — 전부 외부 계정/툴체인이 있어야 진행된다:
+  - Supabase 실배포: 코드·스키마 완료. migrations 와 RLS 는 실 Postgres 로 검증됨
+    (`npm run verify:migrations`). 프로젝트만 있으면 배포 후
+    `npm run verify:supabase -- --slow` 로 서버 검증까지 한 번에 확인된다.
+  - 광고/결제: AdMobProvider 와 서버검증 IapProvider 구현 완료.
+    AdMob 앱/광고단위 ID, 결제 플러그인 선택만 남았다.
+  - 안드로이드 실기기: JDK 17 + Android SDK 필요.
+  - 레이드+카드: 카드 30종 데이터와 경제 시뮬은 완료(`npm run sim:raid`).
+    나머지는 서버 원장이 전제라 Supabase 확보 후.
 
-1) 디자인 컨셉 시안 — 내가 고를 수 있게 3~4개.
-   이미지 생성은 tools/art/generate.py 와 같은 API(gpt-image-2, OpenAI 호환):
-     export ELICE_API_KEY=<내 키>
-     export ELICE_BASE_URL=https://mlapi.run/eb5722f3-111c-4fb5-a65c-3a9d44f82fc1/v1
-   컨셉마다 같은 조건으로 [존 배경 720x1280(하단 55%가 지면) / 몬스터 1 / 보스 1 /
-   영웅 초상 1] 을 뽑고, 컨셉별 폴더 + 비교용 HTML 시트로 정리해줘.
-   방향은 서로 확실히 구분되게 (예: 밝은 카툰치비 / 다크 판타지 / 픽셀아트 / 수채화동화).
+출시까지 남은 항목의 단일 출처는 `docs/PLAY_RELEASE.md` 다.
 
-2) 내가 컨셉을 고르면 tools/art/README.md 절차로 전체 77종 생성 → 후처리 →
-   public/assets/ 반영 → 모든 탭·접힘 상태·보스전 스크린샷 검증 → 커밋.
-   절차 생성 폴백은 반드시 유지 (에셋 없이도 게임이 돌아가야 함).
-
-3) Supabase 실배포 (내가 프로젝트를 만들면). supabase/README.md 절차로
-   migrations + Edge Functions 배포하고, 점수 등록/조회와 서버 검증(진행속도 상한)이
-   실제로 동작하는지 확인. 이 경로는 지금까지 로컬 폴백으로만 테스트됐다.
-
-4) 안드로이드 실기기 빌드 (docs/ANDROID.md) — 세로 고정, 노치/홈바 안전영역,
-   저사양 프레임, 진동, 오디오 자동재생, 백그라운드 복귀 오프라인 보상 확인.
-
-5) 광고/결제 실 SDK — AdMob 은 AdProvider, Play 빌링은 IapProvider 구현체만 교체.
-   Mock 은 ?dev=1 용으로 남긴다.
-
-6) (서버 확보 후) docs/RAIDS.md + supabase/migrations/draft/0004 대로 레이드+카드.
+# 진행 순서 (0~2 는 완료 — 다시 하지 말 것)
+3) Supabase 실배포. project ref / URL / anon key / access token 을 받고
+   Authentication > Providers > Anonymous Sign-ins 를 켠 뒤 supabase/README.md 절차.
+   배포 후 `npm run verify:supabase -- --slow` 가 전 항목 통과해야 한다.
+4) 안드로이드 실기기 빌드 (docs/ANDROID.md). 안전영역·오디오·백그라운드 복귀는
+   E2E 로 고정돼 있으니, 실기기에서는 진동·실제 노치 수치·저사양 프레임을 본다.
+5) 광고/결제 실 SDK. AdMob 은 매니페스트 앱 ID 와 VITE_ADMOB_REWARDED_ID 교체.
+   결제는 플러그인을 고른 뒤 StorePurchase 어댑터 한 함수만 맞추면 된다.
+6) (서버 확보 후) 레이드+카드 — docs/RAIDS.md 의 조정된 수치 그대로.
 
 # 작업 방식
 - CLAUDE.md 규칙 준수 (Phaser v3 API 금지, core/ 와 config.ts 는 Phaser import 금지,
