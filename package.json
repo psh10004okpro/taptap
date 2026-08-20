@@ -16,9 +16,11 @@
     "test:monkey": "MONKEY=1 playwright test --grep @monkey",
     "sim:report": "node sim/run.ts 3 && node sim/report.ts",
     "verify:supabase": "node tools/verify-supabase.mjs",
-    "perf": "node tools/perf.mjs"
+    "perf": "node tools/perf.mjs",
+    "verify:migrations": "bash tools/verify-migrations.sh"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.1.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@supabase/supabase-js": "^2.112.3",

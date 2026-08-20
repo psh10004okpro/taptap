@@ -17,23 +17,36 @@
 ## 사람이 해야 하는 것
 
 ### 1. 서버 (랭킹·결제검증)
+- [x] migrations 가 실제 Postgres 에 적용되고 RLS 불변식이 지켜지는지 검증
+      (`bash tools/verify-migrations.sh` — anon/authenticated 에 INSERT 권한을 줘도 거부되는지까지)
 - [ ] Supabase 프로젝트 생성 + **익명 로그인 활성화**
 - [ ] `npx supabase db push` / `functions deploy submit-score clan-ops verify-purchase`
 - [ ] `npm run verify:supabase -- --slow` 전 항목 통과
 - [ ] `.env.local` 에 URL/anon key (커밋 금지)
 
 ### 2. 결제
+- [x] 서버 검증 프로바이더 구현 (`ServerVerifiedIapProvider`, `src/core/Iap.ts`)
+      — 스토어 결제로 받은 purchaseToken 을 `verify-purchase` 에 보내고
+      **서버가 ok 를 준 뒤에만** 성공을 반환한다 (지급은 grantGems 경유)
+- [ ] Capacitor 결제 플러그인 선택·설치 후 `StorePurchase` 어댑터 10줄 작성:
+      `(productId) => Promise<{ purchaseToken } | null>` 모양만 맞추면 된다.
+      그 뒤 `this.iap.setProvider(new ServerVerifiedIapProvider(buy))` 로 교체
+      (현재 검토한 `@capgo/capacitor-purchases` 는 Capacitor 5 전용이라 부적합)
 - [ ] Play Console 에서 인앱 상품 등록 — 상품 ID 는 `src/config.ts` 의 `GEM_PACKS` 와
       `supabase/functions/verify-purchase` 의 PRODUCTS 사본이 **모두 일치**해야 한다
 - [ ] 서비스 계정 발급 후 `supabase secrets set GOOGLE_SA_EMAIL=... GOOGLE_SA_PRIVATE_KEY=...
       ANDROID_PACKAGE=com.taptap.titans`
-- [ ] Capacitor 결제 플러그인 설치 후 `IapProvider` 구현체 교체 (`src/core/Iap.ts`)
 - [ ] 라이선스 테스터로 실결제 1건 → 보석 지급까지 확인
 
 ### 3. 광고
-- [ ] AdMob 앱/광고 단위 생성
-- [ ] Capacitor 광고 플러그인 설치 후 `AdProvider` 구현체 교체 (`src/core/AdRewards.ts`)
-- [ ] `AndroidManifest.xml` 에 AdMob 앱 ID 메타데이터 추가
+- [x] `@capacitor-community/admob` 설치 + `AdMobProvider` 구현 (`src/ads.ts`)
+      네이티브에서만 동적 로드되고, 실패하면 조용히 비활성(게임은 그대로 진행)
+- [x] `AndroidManifest.xml` 에 AdMob 앱 ID 메타데이터 (현재 **구글 테스트 앱 ID**)
+- [ ] AdMob 콘솔에서 앱/보상형 광고 단위 생성
+- [ ] `AndroidManifest.xml` 의 `com.google.android.gms.ads.APPLICATION_ID` 를 실제 앱 ID 로
+- [ ] `.env.local` 또는 빌드 환경에 `VITE_ADMOB_REWARDED_ID=<실제 광고 단위>`
+      (미설정 시 테스트 광고로 요청한다 — 실광고를 자기 계정에 태우지 않게 하는 안전장치)
+- [ ] 실기기에서 요정 → 광고 → 보상 지급까지 확인
 - [ ] 광고 SDK 를 넣는 순간 **광고 ID 수집**이 생긴다 —
       `docs/PRIVACY.md` 와 아래 데이터 보안 신고를 함께 갱신할 것
 
@@ -54,7 +67,7 @@
 
 ## 데이터 보안(Data safety) 신고 — 현재 코드 기준 답안
 
-광고/결제 SDK 를 붙이기 **전** 상태의 답이다. SDK 를 넣으면 반드시 다시 채울 것.
+**보상형 광고(AdMob)가 포함된 상태**의 답이다. 결제 플러그인을 넣으면 다시 확인할 것.
 
 | 질문 | 답 |
 |---|---|
@@ -70,11 +83,16 @@
 | 앱 정보 및 성능 | — | 아니오 | — | — | — |
 | 개인정보 | 이용자가 입력한 표시 이름 | 예 | 아니오 | 선택 | 앱 기능 |
 | 기기 또는 기타 ID | 익명 계정 식별자 | 예 | 아니오 | 선택 | 앱 기능 |
+| 기기 또는 기타 ID | 광고 ID (AdMob SDK) | 예 | 예 (Google) | 선택 (광고 시청 시) | 광고 |
 | 금융 정보 | 구매 내역(구매 토큰·상품 ID) | 예 | 아니오 | 필수 (구매 시) | 앱 기능·부정 방지 |
 
+광고 ID 는 **AdMob SDK 가 수집**한다 — 앱 코드가 직접 읽지는 않는다. 보상형 광고를
+보지 않으면 광고 요청 자체가 일어나지 않는다. 정확한 수집 범위는 Google 의
+AdMob 데이터 공개 안내를 따라 신고할 것.
+
 수집하지 않음: 위치, 연락처, 사진/동영상, 파일, 메시지, 건강, 통화 기록, 캘린더,
-기기 내 검색 기록, 광고 ID(현재), 사용 통계(분석 이벤트는 앱 내부 링버퍼에만 남고
-전송 대상이 설정돼 있지 않다).
+기기 내 검색 기록, 사용 통계(분석 이벤트는 앱 내부 링버퍼에만 남고 전송 대상이
+설정돼 있지 않다).
 
 ## 출시 후 갱신이 필요한 지점
 

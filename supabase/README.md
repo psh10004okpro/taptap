@@ -6,6 +6,19 @@
 1. https://supabase.com 에서 프로젝트 생성
 2. **Authentication → Providers → Anonymous Sign-ins 활성화** (익명 로그인 필수)
 
+## 1-1. 올리기 전 검증 (자격증명 불필요)
+```bash
+bash tools/verify-migrations.sh     # Docker 필요
+```
+임시 Postgres(supabase/postgres 이미지)에 migrations 를 순서대로 적용하고,
+RLS 불변식을 확인한다 — **anon/authenticated 에 INSERT 권한을 일부러 부여해도
+정책이 거부하는지**, service_role 은 쓸 수 있는지, 구매 토큰 유니크가 걸렸는지.
+운영 DB 를 건드리기 전에 여기서 먼저 깨지게 하는 것이 목적이다.
+
+`supabase/config.toml` 은 `supabase init` 산출물이다. 로컬 스택을 띄울 때
+다른 프로젝트와 충돌하지 않도록 포트를 55320~55329 로 옮겨 뒀고,
+`enable_anonymous_sign_ins = true` 로 원격과 같은 조건을 맞춰 뒀다.
+
 CLI 는 전역 설치 없이 `npx supabase` 로 쓴다 (검증본: 2.115.0).
 
 ## 2. 스키마 적용

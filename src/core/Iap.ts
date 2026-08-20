@@ -42,6 +42,70 @@ export class MockIapProvider implements IapProvider {
   }
 }
 
+/**
+ * 스토어 결제만 담당하는 어댑터. 어떤 Capacitor 결제 플러그인을 쓰든
+ * 이 모양(구매 → purchaseToken)만 맞추면 아래 프로바이더가 그대로 동작한다.
+ * 취소/실패는 null 을 돌려준다.
+ */
+export type StorePurchase = (productId: string) => Promise<{ purchaseToken: string } | null>;
+
+/**
+ * 스토어 결제 + **서버 영수증 검증**. 서버가 ok 를 주기 전에는 성공을 반환하지 않는다.
+ * 지급 자체는 호출측(IapService.buy 의 onGranted → grantGems)이 한다.
+ *
+ * 클라이언트 검증만으로 지급하면 결제 우회가 그대로 통과한다 — 검증은
+ * supabase/functions/verify-purchase 가 Play Developer API 로 영수증을 확인하고
+ * gem_ledger 의 purchase_token unique 로 재전송까지 막는다.
+ */
+export class ServerVerifiedIapProvider implements IapProvider {
+  private client: { functions: { invoke(name: string, opts: { body: unknown }):
+    Promise<{ data: unknown; error: unknown }> } } | null = null;
+  private ready: Promise<void> | null = null;
+
+  constructor(private readonly store: StorePurchase) {
+    if (this.isAvailable()) this.ready = this.connect();
+  }
+
+  isAvailable(): boolean {
+    const env = import.meta.env as Record<string, string | undefined>;
+    return !!(env.VITE_SUPABASE_URL && env.VITE_SUPABASE_ANON_KEY);
+  }
+
+  private async connect(): Promise<void> {
+    try {
+      const env = import.meta.env as Record<string, string | undefined>;
+      const { createClient } = await import('@supabase/supabase-js');
+      const c = createClient(env.VITE_SUPABASE_URL!, env.VITE_SUPABASE_ANON_KEY!);
+      const { data } = await c.auth.getSession();
+      if (!data.session) await c.auth.signInAnonymously();
+      this.client = c as unknown as typeof this.client;
+    } catch {
+      this.client = null; // 검증 불가 → 구매는 실패로 처리된다 (지급 없음)
+    }
+  }
+
+  async purchase(productId: string): Promise<IapResult> {
+    let bought: { purchaseToken: string } | null = null;
+    try {
+      bought = await this.store(productId);
+    } catch {
+      return { ok: false, reason: '결제를 완료하지 못했습니다.' };
+    }
+    if (!bought?.purchaseToken) return { ok: false, reason: '결제가 취소되었습니다.' };
+
+    await this.ready;
+    if (!this.client) return { ok: false, reason: '검증 서버에 연결할 수 없습니다.' };
+    const { data, error } = await this.client.functions.invoke('verify-purchase', {
+      body: { productId, purchaseToken: bought.purchaseToken },
+    });
+    if (error) return { ok: false, reason: '영수증 검증에 실패했습니다.' };
+    if ((data as { ok?: boolean } | null)?.ok !== true) {
+      return { ok: false, reason: '영수증이 확인되지 않았습니다.' };
+    }
+    return { ok: true };
+  }
+}
+
 export class IapService {
   private provider: IapProvider;
   /** 스타터 팩 등 1회 한정 상품 구매 기록 (세이브 밖 — 서버 원장이 진실) */

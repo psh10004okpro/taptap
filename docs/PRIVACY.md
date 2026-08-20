@@ -42,10 +42,17 @@
 보석을 지급한다. **카드번호 등 결제수단 정보는 스토어가 처리하며 이 앱은 취급하지 않는다.**
 중복 지급을 막기 위해 구매 토큰을 지급 원장에 보관한다.
 
-### 2-4. 수집하지 않는 것
+### 2-4. 보상형 광고
+게임 안에서 요정을 탭해 **광고 시청을 선택했을 때만** 광고가 요청된다.
+광고는 Google AdMob 이 제공하며, AdMob SDK 는 광고 게재와 측정을 위해
+**광고 ID 등 기기 식별자**를 수집·이용할 수 있다. 이 앱은 그 값을 직접 읽거나
+보관하지 않는다. 광고를 보지 않으면 광고 요청 자체가 일어나지 않으며,
+게임 진행에 필수인 광고는 없다.
+자세한 내용은 Google 의 광고 관련 개인정보 처리 방침을 따른다.
+
+### 2-5. 수집하지 않는 것
 - 이름·이메일·전화번호·주소·생년월일·성별
 - 정확/대략 위치, 연락처, 사진, 파일, 마이크, 카메라
-- 기기 식별자를 이용한 개인 맞춤 광고 프로파일링
 - 앱 사용 통계의 외부 전송 — 분석 이벤트는 앱 안에서만 순환하며(최근 300건 링버퍼)
   전송 대상이 설정돼 있지 않다.
 
@@ -55,9 +62,7 @@
 |---|---|---|
 | Supabase | 랭킹·클랜·결제 검증 서버 호스팅 | 2-2, 2-3 항목 |
 | Google Play | 앱 배포 및 인앱 결제 | 결제 처리는 Google 정책에 따름 |
-
-이 목록은 광고 SDK(AdMob 등)를 넣는 시점에 갱신해야 한다 — 광고 SDK 는 광고 ID 등
-추가 정보를 수집하므로 이 문서와 Play 데이터 보안 신고를 함께 고쳐야 한다.
+| Google AdMob | 보상형 광고 게재 | 2-4 항목 (광고 시청 시) |
 
 ## 4. 아동
 
@@ -100,12 +105,16 @@ Data leaves your device only in two cases:
    server to confirm the purchase before gems are granted. **Payment instrument details are
    handled by the store and never by this app.**
 
+**Rewarded ads.** Ads are requested only when you choose to watch one (by tapping the fairy).
+Ads are served by Google AdMob, whose SDK may collect and use device identifiers such as the
+advertising ID for ad delivery and measurement; this app does not read or store that value.
+No ad is required to progress in the game.
+
 We do not transmit usage analytics: analytics events stay in an in-app ring buffer (last 300)
-with no delivery target configured. We do not build advertising profiles. This will change if
-an ads SDK is added, and this document and the Play Data safety form will be updated together.
+with no delivery target configured.
 
 **Processors**: Supabase (ranking, clan, purchase verification hosting), Google Play
-(distribution and in-app billing).
+(distribution and in-app billing), Google AdMob (rewarded ads).
 
 **Your choices**: delete device data by uninstalling the app or clearing its storage in
 system settings; to erase a leaderboard record and its anonymous account, contact {{연락처}}

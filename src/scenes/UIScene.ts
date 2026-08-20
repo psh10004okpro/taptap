@@ -20,6 +20,7 @@ import {
 import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import { IapService, MockIapProvider } from '../core/Iap.ts';
+import { AdMobProvider } from '../ads.ts';
 import { Sfx } from '../sfx.ts';
 import { Bgm } from '../bgm.ts';
 import { Haptics } from '../haptics.ts';
@@ -193,6 +194,12 @@ export class UIScene extends Phaser.Scene {
     // QA 모드(?dev=1)에서는 Mock 결제로 상점 흐름 전체를 테스트할 수 있다
     if (new URLSearchParams(location.search).get('dev') === '1') {
       this.iap.setProvider(new MockIapProvider());
+    }
+    // 네이티브 빌드에서는 실제 보상형 광고로 교체 (웹/개발은 Mock 유지)
+    if (AdMobProvider.supported()) {
+      const admob = new AdMobProvider();
+      this.ads.setProvider(admob);
+      void admob.init();
     }
 
     this.buildTopBar();
@@ -1297,22 +1304,20 @@ export class UIScene extends Phaser.Scene {
     if (!st.isGoldBoostActive()) {
       this.showToast('요정을 잡았다! 광고 재생 중...');
       this.ads.offer('gold-boost', () => st.activateGoldBoost(), (ok) => {
-        if (ok) {
-          Sfx.play('claim');
-          st.recordAdWatch();
-          this.showToast('30분간 골드 획득 2배!');
-          this.refreshPanel();
-        }
+        if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+        Sfx.play('claim');
+        st.recordAdWatch();
+        this.showToast('30분간 골드 획득 2배!');
+        this.refreshPanel();
       });
     } else if (st.anySkillOnCooldown()) {
       this.showToast('요정을 잡았다! 광고 재생 중...');
       this.ads.offer('cooldowns', () => st.resetSkillCooldowns(), (ok) => {
-        if (ok) {
-          Sfx.play('claim');
-          st.recordAdWatch();
-          this.showToast('스킬 쿨다운이 초기화되었습니다!');
-          this.refreshPanel();
-        }
+        if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+        Sfx.play('claim');
+        st.recordAdWatch();
+        this.showToast('스킬 쿨다운이 초기화되었습니다!');
+        this.refreshPanel();
       });
     } else {
       // 둘 다 필요 없을 때: 보상 없이 지나가되 이유를 알린다
@@ -1795,7 +1800,9 @@ export class UIScene extends Phaser.Scene {
             this.showToast('광고 재생 중...');
             // 기본 보상은 이미 지급됨 — 광고 시청 시 동일량 추가 지급
             this.ads.offer('offline-x2', () => this.state.addGold(gold), (ok) => {
-              if (ok) { this.state.recordAdWatch(); this.showToast(`+${fmt(gold)} 골드 추가 지급!`); }
+              if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+              this.state.recordAdWatch();
+              this.showToast(`+${fmt(gold)} 골드 추가 지급!`);
             });
           },
         },

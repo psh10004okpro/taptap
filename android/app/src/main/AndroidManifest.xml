@@ -25,6 +25,14 @@
 
         </activity>
 
+        <!-- AdMob 앱 ID. 이 값이 없으면 SDK 초기화 시점에 앱이 죽는다.
+             현재 값은 구글 공식 "테스트 앱 ID" 다 — 실제 게시 전에
+             AdMob 콘솔에서 발급한 앱 ID 로 반드시 교체할 것.
+             광고 단위 ID 는 빌드 환경변수 VITE_ADMOB_REWARDED_ID (src/ads.ts). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

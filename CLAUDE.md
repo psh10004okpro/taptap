@@ -52,7 +52,11 @@
   GOLD_GROWTH < HP_GROWTH 격차가 벽을 만든다. 골드를 HP 비례로 만들지 말 것.
 - 분석 이벤트는 `Analytics.track` 경유, 이벤트 추가 시 docs/ANALYTICS.md 갱신.
 - 광고 보상은 `AdRewards.offer` 경유만 (ad_offer/ad_reward 퍼널 자동 계측).
-  실제 SDK 연동은 `AdProvider` 구현체 교체로만 한다.
+  실제 SDK 연동은 `AdProvider` 구현체 교체로만 한다 — 네이티브용 구현은 `src/ads.ts`
+  (`AdMobProvider`, 플러그인은 동적 import 라 웹 번들에 섞이지 않는다).
+- 결제는 `IapProvider` 교체. `ServerVerifiedIapProvider`(core/Iap.ts)가 스토어 토큰을
+  `verify-purchase` 에 보내고 **서버 ok 이후에만** 성공을 반환한다 —
+  결제 플러그인은 `StorePurchase` 어댑터 한 함수만 맞추면 된다.
 - 장비 statPct 상한 300% (인플레 캡). 일일 퀘스트 골드 보상은 goldMult 미적용 (부스트 악용 방지).
 
 ## 테스트 툴킷 (docs/TESTING.md)
