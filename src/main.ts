@@ -52,6 +52,9 @@ function boot(): void {
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
+      // 기본값(true)이면 ScaleManager 가 부모의 width/height 를 100% 로 덮어써
+      // 안전영역 인셋(#app 의 top/bottom)이 무시된다.
+      expandParent: false,
       width: GAME_WIDTH,
       height: GAME_HEIGHT,
     },
@@ -65,6 +68,24 @@ function boot(): void {
   });
 
   game.registry.set('state', state);
+
+  // 안전영역(노치/홈바)이 바뀌면 부모 박스가 줄어든다. ScaleManager 는 window
+  // resize 만 보므로 부모 크기 변화를 직접 관찰해 다시 맞춘다 — 안 그러면
+  // 캔버스가 홈바 아래로 삐져나온 채로 남는다.
+  const parent = document.getElementById('app');
+  if (parent && typeof ResizeObserver !== 'undefined') {
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // refresh() 만 부르면 재중앙정렬만 하고 크기는 그대로다 —
+        // getParentBounds() 로 부모 치수를 먼저 다시 읽어야 FIT 이 다시 계산된다.
+        game.scale.getParentBounds();
+        game.scale.refresh();
+      });
+    });
+    ro.observe(parent);
+  }
 
   // 오프라인 보상: 즉시 지급 + UIScene 팝업용 기록
   if (awaySec > 0) {
@@ -83,8 +104,28 @@ function boot(): void {
   setInterval(() => state.save(), 5000);
   setInterval(() => state.ensureDaily(), 60_000); // 자정 넘김 감지
   setInterval(() => Season.snapshot(state.maxStage), 30_000); // 시즌 기록 스냅샷
+  // 백그라운드 전환/복귀.
+  // 숨겨진 동안에는 렌더 루프가 멈춰 영웅 DPS 가 전혀 쌓이지 않는다 — 앱이 죽어
+  // 재부팅되는 경우에만 오프라인 보상을 주면, 앱을 살려둔 채 전환한 유저만 손해다.
+  // 복귀 시점에 부팅과 같은 규칙(60초 초과, 상한 클램프)으로 정산한다.
+  let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') state.save();
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      state.save();
+      return;
+    }
+    if (!hiddenAt) return;
+    const awaySec = (Date.now() - hiddenAt) / 1000;
+    hiddenAt = 0;
+    if (awaySec <= 60) return;
+    const sec = Math.min(awaySec, state.offlineCapSec());
+    const gold = state.offlineGold(sec);
+    if (gold <= 0) return;
+    state.addGold(gold);
+    state.save();
+    Analytics.track('offline_return', { sec: Math.round(sec), gold });
+    game.events.emit('offline-return', { sec, gold });
   });
   window.addEventListener('beforeunload', () => state.save());
   // 다른 탭의 저장 감지 → 이 탭은 stale 로 전환 (진행 롤백 방지)

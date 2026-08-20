@@ -8,7 +8,7 @@
 // 씬은 def.name 을 직접 쓰지 말고 여기를 경유한다.
 // ---------------------------------------------------------------------------
 import type {
-  AchievementDef, ArtifactDef, EquipSlotDef, HeroDef, PetDef,
+  AchievementDef, ArtifactDef, EquipSlotDef, GemPackDef, HeroDef, PetDef,
   QuestDef, RarityDef, SkillDef, TreeNodeDef, ZoneDef,
 } from '../config.ts';
 import { t } from './i18n.ts';
@@ -40,6 +40,15 @@ export const rarityName = (r: RarityDef, i: number): string => t(`rarity.${i}.na
 
 export const treeName = (n: TreeNodeDef): string => t(`tree.${n.id}.name`, n.name);
 export const treeDesc = (n: TreeNodeDef): string => t(`tree.${n.id}.desc`, n.desc);
+
+export const gemPackName = (g: GemPackDef): string => t(`gempack.${g.id}.name`, g.name);
+export const gemPackBonus = (g: GemPackDef): string =>
+  g.bonusDesc ? t(`gempack.${g.id}.bonus`, g.bonusDesc) : '';
+/** 로컬 랭킹의 가상 경쟁자 이름 */
+export const botName = (i: number, raw: string): string => t(`bot.${i}`, raw);
+
+export const branchName = (i: number, raw: string): string => t(`branch.${i}`, raw);
+export const tutorialStep = (i: number, raw: string): string => t(`tut.${i}`, raw);
 
 export const questDesc = (q: QuestDef): string => t(`quest.${q.id}.desc`, q.desc);
 export const achDesc = (a: AchievementDef): string => t(`ach.${a.id}.desc`, a.desc);

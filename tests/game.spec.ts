@@ -1362,3 +1362,88 @@ test('다국어: 브라우저 언어로 결정되고 설정 선택이 우선한�
   await page.screenshot({ path: 'screenshots/28-i18n-en.png' });
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });
+
+test('백그라운드 복귀: 앱을 살려둔 채 다녀와도 오프라인 보상을 받는다', async ({ page }) => {
+  const errors = await setup(page);
+  await page.evaluate(() => {
+    const t = window.__taptap!;
+    t.dev.applyPreset(t.state, 'mid');   // 영웅 DPS 확보
+    t.state.tut = 99;
+  });
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => window.__taptap!.state.gold);
+
+  // 숨김 → (시계를 10분 앞당김) → 복귀. 숨겨진 동안 렌더 루프가 멈춰
+  // DPS 가 쌓이지 않으므로, 복귀 시점 정산이 없으면 그 시간은 통째로 사라진다.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState',
+      { get: () => 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+  const expected = await page.evaluate(() => {
+    const real = Date.now;
+    const off = 10 * 60_000;
+    Date.now = () => real.call(Date) + off;
+    const s = window.__taptap!.state;
+    return s.offlineGold(Math.min(600, s.offlineCapSec()));
+  });
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState',
+      { get: () => 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(600);
+
+  const after = await page.evaluate(() => window.__taptap!.state.gold);
+  expect(after).toBeGreaterThan(before);
+  // 온라인 전액이 아니라 오프라인 환산(DPS x 40%)이어야 한다.
+  // 큰 수라 절대 비교 대신 비율로 본다 (지급 시점의 밀리초 차이를 허용)
+  expect(Math.abs((after - before) / expected - 1)).toBeLessThan(0.05);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('안전영역: 노치/홈바 인셋만큼 캔버스가 안으로 들어온다', async ({ page }) => {
+  const errors = await setup(page);
+  const box = () => page.evaluate(() => {
+    const c = document.querySelector('canvas')!.getBoundingClientRect();
+    return { top: c.top, bottom: c.bottom, left: c.left, right: c.right,
+             w: c.width, h: c.height, vh: window.innerHeight, vw: window.innerWidth };
+  });
+  const before = await box();
+  expect(before.h).toBeGreaterThan(0);
+
+  // 노치(상단 44px) + 제스처 홈바(하단 160px). 하단을 크게 잡아 높이가 실제로
+  // 줄어드는 경로까지 본다 — 390x844 에서 작은 인셋은 폭 제약이라 크기가 안 변한다.
+  await page.evaluate(() => {
+    const r = document.documentElement.style;
+    r.setProperty('--sa-top', '44px');
+    r.setProperty('--sa-bottom', '160px');
+  });
+  await page.waitForTimeout(600); // ResizeObserver → scale.refresh 반영
+  const after = await box();
+
+  // 캔버스가 인셋 안쪽으로 들어와야 한다 — 하단 탭 바가 홈바에 먹히면 안 된다
+  expect(after.top).toBeGreaterThanOrEqual(44 - 1);
+  expect(after.bottom).toBeLessThanOrEqual(after.vh - 160 + 1);
+  expect(after.h).toBeLessThan(before.h);
+  // 9:16 비율은 유지된다 (Scale.FIT)
+  expect(after.w / after.h).toBeCloseTo(720 / 1280, 2);
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});
+
+test('오디오 자동재생 정책: 첫 입력 전에는 잠겨 있고 탭 이후 풀린다', async ({ page }) => {
+  const errors = await setup(page);
+  // 브라우저는 사용자 제스처 전 오디오를 막는다 — 부팅만으로 컨텍스트가
+  // running 이면 실기기에서 무음이 되거나 콘솔 경고가 쌓인다.
+  const ctxState = () => page.evaluate(() => {
+    const sfx = window.__taptap!.sfx as unknown as { ctx: AudioContext | null };
+    return sfx.ctx ? sfx.ctx.state : 'none';
+  });
+  expect(['none', 'suspended']).toContain(await ctxState());
+
+  await tapGame(page, 360, 470);
+  await page.waitForTimeout(500);
+  expect(await ctxState()).toBe('running');
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});

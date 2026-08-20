@@ -7,6 +7,7 @@
 // supabase/functions/submit-score 참고.
 import { seasonKey } from './Season.ts';
 import { t } from './i18n.ts';
+import { botName } from './names.ts';
 
 export interface LbEntry {
   name: string;
@@ -97,7 +98,8 @@ export class Leaderboard {
         const raw = localStorage.getItem(LOCAL_KEY);
         if (raw) me = { ...(JSON.parse(raw) as Omit<LbEntry, 'isMe'>), isMe: true };
       } catch { /* ignore */ }
-      const all = [...LOCAL_BOTS.map((b) => ({ ...b, isMe: false })), ...(me ? [me] : [])];
+      const all = [...LOCAL_BOTS.map((b, i) => ({ ...b, name: botName(i, b.name), isMe: false })),
+        ...(me ? [me] : [])];
       return all.sort((a, b) => b.stage - a.stage).slice(0, n);
     }
     await this.ready;

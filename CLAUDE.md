@@ -8,7 +8,8 @@
 ## 아키텍처 불변식
 - `src/core/` 와 `src/config.ts` 는 **Phaser import 금지** (순수 로직 계층).
 - 상태 변경은 반드시 `GameState` 메서드 경유 + 이벤트 발행. Scene 이 상태를 직접 쓰지 않는다.
-- Scene 간 통신은 `game.events` 버스 (`engage-boss`, `boss-timer`, `fairy-tap`, `fairy-force`).
+- Scene 간 통신은 `game.events` 버스 (`engage-boss`, `boss-timer`, `fairy-tap`,
+  `fairy-force`, `ui-collapse`, `offline-return`).
 - 논리 해상도 720x1280 고정, `Scale.FIT`. 좌표 하드코딩은 `config.ts` 레이아웃 상수 사용.
 - **UIScene 모달은 GameScene 입력을 가리지 못한다** (씬이 다름). 오버레이/팝업 열고 닫을 때
   `syncBlocking()` 으로 `registry.uiBlocking` 을 갱신하고, GameScene 은 탭 처리 선두에서 이를 확인한다.

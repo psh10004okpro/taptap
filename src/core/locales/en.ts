@@ -433,6 +433,25 @@ export const en: Catalog = {
   'dur.ms': '{m}m {s}s',
   'dur.s': '{s}s',
 
+  // --- 스킬트리 계열 / 온보딩 ---
+  'branch.0': 'Knight', 'branch.1': 'Warlord', 'branch.2': 'Alchemist',
+  'tut.0': 'Tap the monster to attack! (10x)',
+  'tut.1': 'Once you have gold, raise [Tap Damage]',
+  'tut.2': 'Hired heroes fight for you automatically',
+  'tut.3': 'Clear the monsters and take on the boss!',
+  'tut.4': 'Stuck? [Prestige]! Relics make you permanently stronger (tap to close)',
+
+  // --- 보석 팩 / 로컬 랭킹 봇 ---
+  'gempack.gems_s.name': 'Handful of Gems',
+  'gempack.gems_m.name': 'Pouch of Gems',
+  'gempack.gems_m.bonus': '+12% bonus',
+  'gempack.gems_l.name': 'Vault of Gems',
+  'gempack.gems_l.bonus': '+23% bonus',
+  'gempack.starter.name': 'Starter Pack',
+  'gempack.starter.bonus': 'Includes 1 legendary gear · one purchase only',
+  'bot.0': 'OldGuardLegend', 'bot.1': 'SlimeSlayer', 'bot.2': 'TapTapper',
+  'bot.3': 'WeekendHero', 'bot.4': 'FreshMeat',
+
   // --- 설정 ---
   'set.language': 'Language',
   'set.sfx': 'Sound effects',

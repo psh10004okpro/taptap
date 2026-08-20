@@ -23,9 +23,10 @@ import { IapService, MockIapProvider } from '../core/Iap.ts';
 import { AdMobProvider } from '../ads.ts';
 import { t, setLang, nextLang, langLabel } from '../core/i18n.ts';
 import {
-  achDesc, artifactDesc, artifactName, heroName, heroPassive, heroTitle,
+  achDesc, artifactDesc, artifactName, branchName, gemPackBonus, gemPackName,
+  heroName, heroPassive, heroTitle,
   petDesc, petGlyph, petName, questDesc, rarityName, skillDesc, skillGlyph,
-  skillName, slotName, treeDesc, treeName, zoneName,
+  skillName, slotName, treeDesc, treeName, tutorialStep, zoneName,
 } from '../core/names.ts';
 import { Sfx } from '../sfx.ts';
 import { Bgm } from '../bgm.ts';
@@ -230,6 +231,12 @@ export class UIScene extends Phaser.Scene {
     // 오프라인 보상 팝업 (main.ts 에서 지급 후 registry 에 기록)
     const off = this.registry.get('offlineReward') as { sec: number; gold: number } | undefined;
     if (off && off.gold > 0) this.showOfflinePopup(off.sec, off.gold);
+    // 앱을 살려둔 채 백그라운드에 다녀온 경우 (main.ts 가 정산 후 발행)
+    this.game.events.off('offline-return');
+    this.game.events.on('offline-return', (...args: unknown[]) => {
+      const r = args[0] as { sec: number; gold: number };
+      if (r?.gold > 0) this.showOfflinePopup(r.sec, r.gold);
+    });
 
     // 시즌 전환 보상 팝업
     const sr = this.registry.get('seasonReward') as { season: string; stage: number; relics: number } | undefined;
@@ -471,7 +478,7 @@ export class UIScene extends Phaser.Scene {
       this.tweens.killTweensOf(this.tutPointer);
       return;
     }
-    this.tutText.setText(TUTORIAL_STEPS[step]);
+    this.tutText.setText(tutorialStep(step, TUTORIAL_STEPS[step]));
     // 배너가 전투 탭을 가로채지 않게, 확인이 필요한 마지막 단계만 인터랙티브
     if (step === TUTORIAL_STEPS.length - 1) {
       this.tutBg.setInteractive({ useHandCursor: true });
@@ -1016,7 +1023,8 @@ export class UIScene extends Phaser.Scene {
     c.add([this.spText, this.respecBtn, this.respecText]);
 
     // 계열 토글 3버튼
-    TREE_BRANCH_NAMES.forEach((bn, b) => {
+    TREE_BRANCH_NAMES.forEach((rawBn, b) => {
+      const bn = branchName(b, rawBn);
       const x = 130 + b * 230;
       const img = this.add.image(x, PANEL_Y + 208, b === 0 ? 'tab-on' : 'tab-off').setScale(1.5, 0.85);
       const txt = this.add.text(x, PANEL_Y + 208, bn, {
@@ -1777,9 +1785,9 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0, 0.5).setDepth(72));
     GEM_PACKS.forEach((pk) => {
       const sub = t('shop.gemCost', '보석 {n}', { n: pk.gems })
-        + (pk.bonusDesc ? ` · ${pk.bonusDesc}` : '');
+        + (pk.bonusDesc ? ` · ${gemPackBonus(pk)}` : '');
       const soldOut = this.iap.alreadyPurchased(pk.id);
-      row(y, pk.name, sub, soldOut ? t('shop.owned', '구매완료') : `₩${pk.priceKrw.toLocaleString()}`,
+      row(y, gemPackName(pk), sub, soldOut ? t('shop.owned', '구매완료') : `₩${pk.priceKrw.toLocaleString()}`,
         this.iap.isAvailable() && !soldOut, () => {
           this.showToast(t('shop.paying', '결제 진행 중...'));
           void this.iap.buy(pk.id, (gems) => {
