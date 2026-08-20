@@ -17,7 +17,8 @@
     "sim:report": "node sim/run.ts 3 && node sim/report.ts",
     "verify:supabase": "node tools/verify-supabase.mjs",
     "perf": "node tools/perf.mjs",
-    "verify:migrations": "bash tools/verify-migrations.sh"
+    "verify:migrations": "bash tools/verify-migrations.sh",
+    "sim:raid": "node sim/raid.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.1.0",
