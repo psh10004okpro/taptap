@@ -1316,3 +1316,49 @@ test('절차 생성 폴백: 에셋이 하나도 없어도 게임이 그대로 �
   await page.screenshot({ path: 'screenshots/27-fallback.png' });
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });
+
+/** 하단 첫 번째 탭 버튼의 라벨 (언어 확인용) */
+async function firstTabLabel(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const g = window.__taptap!.game as {
+      scene: { getScenes(a: boolean): { tabButtons?: { label: { text: string } }[] }[] };
+    };
+    const ui = g.scene.getScenes(true).find((s) => s.tabButtons);
+    return ui!.tabButtons![0].label.text;
+  });
+}
+
+test('다국어: 브라우저 언어로 결정되고 설정 선택이 우선한다', async ({ page }) => {
+  const errors = await setup(page);
+  // 헤드리스 기본 로캘은 en-US → 영어로 뜬다
+  expect(await firstTabLabel(page)).toBe('Master');
+
+  // 저장된 선택이 브라우저 언어를 이긴다
+  await page.evaluate(() => localStorage.setItem('taptap-lang', 'ko'));
+  await page.reload();
+  await page.waitForFunction(
+    () => (window.__taptap?.game as { registry: { get(k: string): unknown } } | undefined)
+      ?.registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
+  expect(await firstTabLabel(page)).toBe('소드마스터');
+  // 데이터(존 이름)도 함께 한국어여야 한다 — 오버레이 폴백 확인
+  expect(await page.evaluate(() => {
+    const g = window.__taptap!.game as {
+      scene: { getScenes(a: boolean): { nameText?: { text: string } }[] };
+    };
+    return g.scene.getScenes(true).find((s) => s.nameText)!.nameText!.text;
+  })).toMatch(/[가-힣]/);
+
+  // 번역이 없는 키는 한국어 원문으로 떨어진다 (빈 문자열이 되지 않는다)
+  await page.evaluate(() => localStorage.setItem('taptap-lang', 'en'));
+  await page.reload();
+  await page.waitForFunction(
+    () => (window.__taptap?.game as { registry: { get(k: string): unknown } } | undefined)
+      ?.registry.get('uiReady') === true,
+    undefined, { timeout: 15_000 },
+  );
+  expect(await firstTabLabel(page)).toBe('Master');
+  await page.screenshot({ path: 'screenshots/28-i18n-en.png' });
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});

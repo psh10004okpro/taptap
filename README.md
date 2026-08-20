@@ -74,6 +74,7 @@ python3 tools/art/process.py      # 후처리 → public/assets/ + manifest.json
 | `docs/RAIDS.md` | 레이드/카드 설계 (미구현 — 서버 확보 후) |
 | `docs/PLAY_RELEASE.md` | **출시 체크리스트 + 데이터 보안 신고 답안** |
 | `docs/PRIVACY.md` | 개인정보처리방침 초안 (게시 전 자리표시자 3개) |
+| `docs/I18N.md` | 다국어 구조와 문구 추가 절차 |
 
 ## 게임 구조
 
@@ -133,5 +134,6 @@ tests/game.spec.ts        Playwright E2E 48종 (window.__taptap 훅)
 ## 알려진 제약
 
 - 헤드리스 CI 스크린샷에서 일부 한글 글리프가 대체 폰트로 렌더링될 수 있음(실기기는 정상).
+- QA 패널(`?dev=1`)과 `core/DevTools.ts` 문구는 한국어만 있다 (개발자용).
 - 아트는 다크 판타지 컨셉(`tools/art/concepts/`)으로 확정. UI 텍스처(패널/버튼/바)는
   일관성·용량 때문에 의도적으로 절차 생성을 유지한다.

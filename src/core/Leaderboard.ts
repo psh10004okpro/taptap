@@ -6,6 +6,7 @@
 // 점수(최고 스테이지)는 클라이언트를 신뢰하지 않는다 — 서버 검증 규칙은
 // supabase/functions/submit-score 참고.
 import { seasonKey } from './Season.ts';
+import { t } from './i18n.ts';
 
 export interface LbEntry {
   name: string;
@@ -73,7 +74,7 @@ export class Leaderboard {
   /** 점수 제출. 성공 시 null, 실패 시 사용자용 에러 메시지 반환 */
   async submit(name: string, stage: number, relics: number): Promise<string | null> {
     name = name.trim();
-    if (name.length < 2 || name.length > 12) return '이름은 2~12자여야 합니다.';
+    if (name.length < 2 || name.length > 12) return t('lb.badName', '이름은 2~12자여야 합니다.');
     if (this.mode === 'local') {
       try {
         localStorage.setItem(LOCAL_KEY, JSON.stringify({ name, stage, relics }));
@@ -81,11 +82,11 @@ export class Leaderboard {
       return null;
     }
     await this.ready;
-    if (!this.client) return '서버에 연결할 수 없습니다.';
+    if (!this.client) return t('lb.noServer', '서버에 연결할 수 없습니다.');
     const { error } = await this.client.functions.invoke('submit-score', {
       body: { name, stage, relics },
     });
-    return error ? '제출이 거부되었습니다. 잠시 후 다시 시도하세요.' : null;
+    return error ? t('lb.rejected', '제출이 거부되었습니다. 잠시 후 다시 시도하세요.') : null;
   }
 
   /** 상위 N명 + 내 항목 표시. null = 원격 연결 실패 (빈 랭킹과 구분) */

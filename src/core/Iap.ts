@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import { GEM_PACKS } from '../config.ts';
 import { Analytics } from './Analytics.ts';
+import { t } from './i18n.ts';
 
 export interface IapResult {
   ok: boolean;
@@ -29,7 +30,7 @@ export interface IapProvider {
 export class UnavailableIapProvider implements IapProvider {
   isAvailable(): boolean { return false; }
   purchase(): Promise<IapResult> {
-    return Promise.resolve({ ok: false, reason: '상점 준비 중입니다.' });
+    return Promise.resolve({ ok: false, reason: t('iap.unavailable', '상점 준비 중입니다.') });
   }
 }
 
@@ -89,18 +90,18 @@ export class ServerVerifiedIapProvider implements IapProvider {
     try {
       bought = await this.store(productId);
     } catch {
-      return { ok: false, reason: '결제를 완료하지 못했습니다.' };
+      return { ok: false, reason: t('iap.failed', '결제를 완료하지 못했습니다.') };
     }
-    if (!bought?.purchaseToken) return { ok: false, reason: '결제가 취소되었습니다.' };
+    if (!bought?.purchaseToken) return { ok: false, reason: t('iap.cancelled', '결제가 취소되었습니다.') };
 
     await this.ready;
-    if (!this.client) return { ok: false, reason: '검증 서버에 연결할 수 없습니다.' };
+    if (!this.client) return { ok: false, reason: t('iap.noServer', '검증 서버에 연결할 수 없습니다.') };
     const { data, error } = await this.client.functions.invoke('verify-purchase', {
       body: { productId, purchaseToken: bought.purchaseToken },
     });
-    if (error) return { ok: false, reason: '영수증 검증에 실패했습니다.' };
+    if (error) return { ok: false, reason: t('iap.verifyFail', '영수증 검증에 실패했습니다.') };
     if ((data as { ok?: boolean } | null)?.ok !== true) {
-      return { ok: false, reason: '영수증이 확인되지 않았습니다.' };
+      return { ok: false, reason: t('iap.notVerified', '영수증이 확인되지 않았습니다.') };
     }
     return { ok: true };
   }
@@ -130,8 +131,8 @@ export class IapService {
   /** 구매 흐름. 성공 시 onGranted(gems) 를 호출해 지급을 위임한다. */
   async buy(productId: string, onGranted: (gems: number) => void): Promise<IapResult> {
     const pack = GEM_PACKS.find((p) => p.id === productId);
-    if (!pack) return { ok: false, reason: '알 수 없는 상품입니다.' };
-    if (this.alreadyPurchased(productId)) return { ok: false, reason: '이미 구매한 상품입니다.' };
+    if (!pack) return { ok: false, reason: t('iap.unknownProduct', '알 수 없는 상품입니다.') };
+    if (this.alreadyPurchased(productId)) return { ok: false, reason: t('iap.alreadyOwned', '이미 구매한 상품입니다.') };
     Analytics.track('iap_start', { product: productId });
     const result = await this.provider.purchase(productId);
     if (!result.ok) {

@@ -11,6 +11,7 @@ import {
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
 import { fmt } from '../core/format.ts';
+import { bossName, monsterName } from '../core/names.ts';
 import { Sfx } from '../sfx.ts';
 import { Haptics } from '../haptics.ts';
 
@@ -294,14 +295,14 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.shake(200, 0.006);
       this.cameras.main.flash(150, 110, 20, 30);
       this.monster.setTexture('boss');
-      this.nameText.setText(zone.bossName).setColor('#ff9c9c').setScale(1.4);
+      this.nameText.setText(bossName(zone)).setColor('#ff9c9c').setScale(1.4);
       this.tweens.add({ targets: this.nameText, scale: 1, duration: 260, ease: 'Back.Out' });
       this.bossLimit = st.bossTimeLimit();
       this.bossDeadline = this.time.now + this.bossLimit;
     } else {
       const slot = (st.stage * 7 + st.kills * 3) % zone.monsters.length;
       this.monster.setTexture('monster' + zone.monsters[slot]);
-      this.nameText.setText(zone.monsterNames[slot]).setColor('#ffffff').setScale(1);
+      this.nameText.setText(monsterName(zone, slot)).setColor('#ffffff').setScale(1);
       this.bossDeadline = 0;
       this.game.events.emit('boss-timer', -1);
     }

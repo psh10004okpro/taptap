@@ -21,6 +21,12 @@ import { GameState } from '../core/GameState.ts';
 import { AdRewards } from '../core/AdRewards.ts';
 import { IapService, MockIapProvider } from '../core/Iap.ts';
 import { AdMobProvider } from '../ads.ts';
+import { t, setLang, nextLang, langLabel } from '../core/i18n.ts';
+import {
+  achDesc, artifactDesc, artifactName, heroName, heroPassive, heroTitle,
+  petDesc, petGlyph, petName, questDesc, rarityName, skillDesc, skillGlyph,
+  skillName, slotName, treeDesc, treeName, zoneName,
+} from '../core/names.ts';
 import { Sfx } from '../sfx.ts';
 import { Bgm } from '../bgm.ts';
 import { Haptics } from '../haptics.ts';
@@ -207,8 +213,8 @@ export class UIScene extends Phaser.Scene {
     this.buildBossButton();
     this.buildPanel();
     this.buildFloatIcons();
-    this.questOverlay = this.makeOverlay('퀘스트', this.buildQuestTab());
-    this.rankOverlay = this.makeOverlay('랭킹', this.buildRankTab());
+    this.questOverlay = this.makeOverlay(t('ov.quest', '퀘스트'), this.buildQuestTab());
+    this.rankOverlay = this.makeOverlay(t('ov.rank', '랭킹'), this.buildRankTab());
     this.buildTutorial();
     this.bindEvents();
     this.refreshAll();
@@ -229,9 +235,9 @@ export class UIScene extends Phaser.Scene {
     const sr = this.registry.get('seasonReward') as { season: string; stage: number; relics: number } | undefined;
     if (sr) {
       this.showPopup(
-        '시즌 종료!',
-        `${sr.season} 시즌 기록: 스테이지 ${sr.stage}\n시즌 보상: 유물 +${sr.relics}\n새 시즌 랭킹이 시작되었습니다.`,
-        [{ label: '받기', on: () => { /* 이미 지급됨 */ } }],
+        t('season.end', '시즌 종료!'),
+        t('season.endBody', '{s} 시즌 기록: 스테이지 {stage}\n시즌 보상: 유물 +{relics}\n새 시즌 랭킹이 시작되었습니다.', { s: sr.season, stage: sr.stage, relics: sr.relics }),
+        [{ label: t('btn.claim', '받기'), on: () => { /* 이미 지급됨 */ } }],
       );
     }
 
@@ -239,9 +245,10 @@ export class UIScene extends Phaser.Scene {
     const tr = this.registry.get('tourneyReward') as { stage: number; relics: number } | undefined;
     if (tr) {
       this.showPopup(
-        '토너먼트 결과',
-        `지난 토너먼트 기록: 스테이지 ${tr.stage}\n보상: 유물 +${tr.relics}`,
-        [{ label: '받기', on: () => { /* 이미 지급됨 */ } }],
+        t('tour.result', '토너먼트 결과'),
+        t('tour.resultBody', '지난 토너먼트 기록: 스테이지 {stage}\n보상: 유물 +{relics}',
+        { stage: tr.stage, relics: tr.relics }),
+        [{ label: t('btn.claim', '받기'), on: () => { /* 이미 지급됨 */ } }],
       );
     }
 
@@ -280,7 +287,7 @@ export class UIScene extends Phaser.Scene {
     gem.fillTriangle(-8, 0, 8, 0, 0, 10);
     gem.fillStyle(0xd8b8ff, 0.6);
     gem.fillTriangle(-3, -6, 3, -6, 0, -1);
-    this.gemText = this.add.text(64, 126, '0  [상점]', {
+    this.gemText = this.add.text(64, 126, `0  ${t('top.shop', '[상점]')}`, {
       fontFamily: FONT, fontSize: '19px', color: '#d8b8ff', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
     this.gemText.setInteractive({ useHandCursor: true })
@@ -306,7 +313,7 @@ export class UIScene extends Phaser.Scene {
     });
 
     // 설정 팝업
-    const setBtn = this.add.text(596, 122, '[설정]', {
+    const setBtn = this.add.text(596, 122, t('top.settings', '[설정]'), {
       fontFamily: FONT, fontSize: '19px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0.5);
     setBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
@@ -339,9 +346,12 @@ export class UIScene extends Phaser.Scene {
       });
       return { glyph: g, label: l };
     };
-    mk(0, '퀘', '퀘스트', () => this.openQuestOverlay());
-    mk(1, '랭', '랭킹', () => this.openRankOverlay());
-    const col = mk(2, '▼', '넓게', () => this.applyCollapse(!this.collapsed));
+    mk(0, t('float.quest.glyph', '퀘'), t('float.quest', '퀘스트'),
+       () => this.openQuestOverlay());
+    mk(1, t('float.rank.glyph', '랭'), t('float.rank', '랭킹'),
+       () => this.openRankOverlay());
+    const col = mk(2, '▼', t('float.wide', '넓게'),
+       () => this.applyCollapse(!this.collapsed));
     this.collapseGlyph = col.glyph;
     this.collapseLabel = col.label;
     // 수령 가능한 퀘스트/업적 개수 배지
@@ -364,7 +374,7 @@ export class UIScene extends Phaser.Scene {
     const skillY = on ? COLLAPSED.skillBarY : SKILL_BAR_Y;
     this.panelBg.setVisible(!on);
     this.tabContents.forEach((c, k) => c.setVisible(!on && k === this.curTab));
-    this.tabButtons.forEach((t) => { t.img.setY(tabY); t.label.setY(tabY); });
+    this.tabButtons.forEach((tb) => { tb.img.setY(tabY); tb.label.setY(tabY); });
     this.skillBtns.forEach((b) => {
       b.base.setY(skillY);
       b.ring.setY(skillY);
@@ -372,7 +382,7 @@ export class UIScene extends Phaser.Scene {
       b.status.setY(skillY + 26);
     });
     this.collapseGlyph?.setText(on ? '▲' : '▼');
-    this.collapseLabel?.setText(on ? '패널' : '넓게');
+    this.collapseLabel?.setText(on ? t('float.panel', '패널') : t('float.wide', '넓게'));
     this.game.events.emit('ui-collapse', on);
     this.refreshTutorial();
   }
@@ -497,7 +507,7 @@ export class UIScene extends Phaser.Scene {
       const x = 70 + i * 116;
       const base = this.add.image(x, y, 'skill' + s.id).setDepth(5).setScale(0.92);
       const ring = this.add.image(x, y, 'skill-ring').setDepth(6).setVisible(false);
-      const glyph = this.add.text(x, y - 2, s.glyph, {
+      const glyph = this.add.text(x, y - 2, skillGlyph(s), {
         fontFamily: FONT, fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
         stroke: '#22182f', strokeThickness: 4,
       }).setOrigin(0.5).setDepth(7);
@@ -509,9 +519,9 @@ export class UIScene extends Phaser.Scene {
         if (this.state.tryActivateSkill(s.id)) {
           Sfx.play('skill');
           this.tweens.add({ targets: [base, glyph], scale: 1.15, duration: 90, yoyo: true });
-          this.showToast(`${s.name}! ${s.desc}`);
+          this.showToast(`${skillName(s)}! ${skillDesc(s)}`);
         } else if (!this.state.isSkillUnlocked(s.id)) {
-          this.showToast(`스테이지 ${s.unlockStage} 도달 시 해금`);
+          this.showToast(t('skill.locked', '스테이지 {n} 도달 시 해금', { n: s.unlockStage }));
         }
       });
       this.skillBtns.push({ base, ring, glyph, status });
@@ -528,7 +538,7 @@ export class UIScene extends Phaser.Scene {
         b.base.setAlpha(0.35);
         b.glyph.setAlpha(0.5);
         b.ring.setVisible(false);
-        b.status.setText(`${s.unlockStage}층`);
+        b.status.setText(t('skill.floor', '{n}층', { n: s.unlockStage }));
         return;
       }
       const active = st.isSkillActive(s.id);
@@ -547,7 +557,7 @@ export class UIScene extends Phaser.Scene {
       } else {
         b.base.setAlpha(1);
         b.glyph.setAlpha(1);
-        b.status.setText('준비').setColor('#9fd8ff');
+        b.status.setText(t('skill.ready', '준비')).setColor('#9fd8ff');
       }
     });
     // 전투 함성 등으로 DPS 표기가 시간에 따라 변하므로 함께 갱신
@@ -565,7 +575,7 @@ export class UIScene extends Phaser.Scene {
   /** 보스 도전 — 상단 우측(스테이지 표기 옆). 전투 화면 중앙을 비워 둔다 */
   private buildBossButton(): void {
     const img = this.add.image(0, 0, 'btn-boss-sm');
-    const label = this.add.text(0, 0, '보스 도전!', {
+    const label = this.add.text(0, 0, t('boss.challenge', '보스 도전!'), {
       fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.bossBtn = this.add.container(BOSS_BTN.x, BOSS_BTN.y, [img, label]).setVisible(false);
@@ -583,7 +593,8 @@ export class UIScene extends Phaser.Scene {
     this.panelBg = this.add.image(0, PANEL_Y - 24, 'panel').setOrigin(0, 0);
 
     // 탭 버튼 (5탭 x 132px + 9px 간격)
-    TAB_NAMES.forEach((label, i) => {
+    TAB_NAMES.forEach((raw, i) => {
+      const label = t(`tab.${i}`, raw);
       const x = 76 + i * 142;
       const img = this.add.image(x, TAB_Y, i === 0 ? 'tab-on' : 'tab-off');
       const txt = this.add.text(x, TAB_Y, label, {
@@ -622,7 +633,8 @@ export class UIScene extends Phaser.Scene {
   private buildEquipTab(): Phaser.GameObjects.Container {
     const c = this.add.container(0, 0).setVisible(false);
     c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 44,
-      `보스 처치 시 ${Math.round(EQUIP_DROP_CHANCE * 100)}% 확률로 장비 드롭 · 상위 장비 자동 장착`, {
+      t('gear.header', '보스 처치 시 {pct}% 확률로 장비 드롭 · 상위 장비 자동 장착',
+        { pct: Math.round(EQUIP_DROP_CHANCE * 100) }), {
         fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
       }).setOrigin(0.5));
     this.equipSetText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 76, '', {
@@ -651,7 +663,7 @@ export class UIScene extends Phaser.Scene {
   private buildPetTab(): Phaser.GameObjects.Container {
     const c = this.add.container(0, 0).setVisible(false);
     c.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 44,
-      '펫 — 보스가 6% 확률로 알을 떨어뜨립니다 (중복 시 레벨업)', {
+      t('pet.header', '펫 — 보스가 6% 확률로 알을 떨어뜨립니다 (중복 시 레벨업)'), {
         fontFamily: FONT, fontSize: '16px', color: '#9a8bb8',
       }).setOrigin(0.5));
 
@@ -668,12 +680,12 @@ export class UIScene extends Phaser.Scene {
         g.fillStyle(dark, 1).fillCircle(0, 0, 26);
         g.fillStyle(pt.color, 1).fillCircle(0, -1, 22);
         c.add(g);
-        c.add(this.add.text(x, y - 30, pt.glyph, {
+        c.add(this.add.text(x, y - 30, petGlyph(pt), {
           fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
           stroke: '#22182f', strokeThickness: 3,
         }).setOrigin(0.5));
       }
-      c.add(this.add.text(x, y + 6, pt.name, {
+      c.add(this.add.text(x, y + 6, petName(pt), {
         fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5));
       const lvl = this.add.text(x, y + 28, '', {
@@ -720,7 +732,7 @@ export class UIScene extends Phaser.Scene {
     const c = this.add.container(0, 0).setVisible(false);
 
     // 서브탭 토글 [일일 퀘스트 | 업적]
-    ['일일 퀘스트', '업적'].forEach((label, i) => {
+    [t('quest.daily', '일일 퀘스트'), t('quest.ach', '업적')].forEach((label, i) => {
       const x = GAME_WIDTH / 2 + (i === 0 ? -110 : 110);
       const img = this.add.image(x, PANEL_Y + 44, i === 0 ? 'tab-on' : 'tab-off').setScale(1.4, 0.9);
       const txt = this.add.text(x, PANEL_Y + 44, label, {
@@ -745,7 +757,7 @@ export class UIScene extends Phaser.Scene {
         fontFamily: FONT, fontSize: '16px', color: '#c9b8e8',
       }).setOrigin(0, 0.5);
       const btn = this.add.image(GAME_WIDTH - 96, y, 'btn-buy');
-      const btnText = this.add.text(GAME_WIDTH - 96, y, '받기', {
+      const btnText = this.add.text(GAME_WIDTH - 96, y, t('btn.claim', t('btn.claim', '받기')), {
         fontFamily: FONT, fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0.5);
       const rowIdx = i;
@@ -754,7 +766,7 @@ export class UIScene extends Phaser.Scene {
         if (qid !== undefined && this.state.claimQuest(qid)) {
           Sfx.play('claim');
           this.pop(btn);
-          this.showToast('퀘스트 보상을 받았습니다!');
+          this.showToast(t('quest.claimed', '퀘스트 보상을 받았습니다!'));
         }
       });
       c.add([bg, desc, prog, btn, btnText]);
@@ -782,7 +794,7 @@ export class UIScene extends Phaser.Scene {
         if (a && this.state.claimAch(a.id)) {
           Sfx.play('claim');
           this.pop(btn);
-          this.showToast(`업적 달성! 유물 +${a.rewardRelics}`);
+          this.showToast(t('ach.done', '업적 달성! 유물 +{n}', { n: a.rewardRelics }));
         }
       });
       c.add([bg, desc, prog, btn, btnText]);
@@ -853,14 +865,14 @@ export class UIScene extends Phaser.Scene {
     relicIcon.fillStyle(0xd8b8ff, 0.55);
     relicIcon.fillTriangle(-5, -11, 5, -11, 0, -2);
     c.add(relicIcon);
-    c.add(this.add.text(74, presY - 12, '환생', {
+    c.add(this.add.text(74, presY - 12, t('sm.prestige', '환생'), {
       fontFamily: FONT, fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0, 0.5));
     this.prestigeSub = this.add.text(74, presY + 12, '', {
       fontFamily: FONT, fontSize: '15px', color: '#c9b8e8',
     }).setOrigin(0, 0.5);
     const presImg = this.add.image(0, 0, 'btn-prestige');
-    this.prestigeLabel = this.add.text(0, 0, '환생', {
+    this.prestigeLabel = this.add.text(0, 0, t('sm.prestige', '환생'), {
       fontFamily: FONT, fontSize: '19px', color: '#ffffff', fontStyle: 'bold', align: 'center',
     }).setOrigin(0.5);
     this.prestigeBtn = this.add.container(GAME_WIDTH - 96, presY, [presImg, this.prestigeLabel]);
@@ -987,16 +999,17 @@ export class UIScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '19px', color: '#f9e79f', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
     this.respecBtn = this.add.image(GAME_WIDTH - 96, PANEL_Y + 162, 'btn-buy');
-    this.respecText = this.add.text(GAME_WIDTH - 96, PANEL_Y + 162, `리셋 유물${TREE_RESPEC_COST}`, {
+    this.respecText = this.add.text(GAME_WIDTH - 96, PANEL_Y + 162,
+      t('sm.respec', '리셋 유물{n}', { n: TREE_RESPEC_COST }), {
       fontFamily: FONT, fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.respecBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       this.showPopup(
-        '스킬트리 초기화',
-        `유물 ${TREE_RESPEC_COST}개를 소비하고\n모든 노드를 초기화합니다.\n사용한 SP 는 전액 돌려받습니다.`,
+        t('tree.respecTitle', '스킬트리 초기화'),
+        t('tree.respecBody', '유물 {n}개를 소비하고\n모든 노드를 초기화합니다.\n사용한 SP 는 전액 돌려받습니다.', { n: TREE_RESPEC_COST }),
         [
           { label: '초기화', on: () => { if (this.state.respecTree()) this.showToast('스킬트리가 초기화되었습니다'); } },
-          { label: '취소', on: () => { /* noop */ } },
+          { label: t('btn.cancel', '취소'), on: () => { /* noop */ } },
         ],
       );
     });
@@ -1038,9 +1051,9 @@ export class UIScene extends Phaser.Scene {
         if (this.state.tryBuyNode(node.id)) {
           this.pop(bg);
         } else if (!this.state.isNodeUnlocked(node.id)) {
-          this.showToast(`선행 노드 레벨 ${node.requiresLevel} 필요`);
+          this.showToast(t('tree.needPrereq', '선행 노드 레벨 {n} 필요', { n: node.requiresLevel }));
         } else if (this.state.spAvailable() < treeNodeCost(node)) {
-          this.showToast('SP가 부족합니다 (스테이지 10마다 +1, 환생 +2)');
+          this.showToast(t('tree.noSp', 'SP가 부족합니다 (스테이지 10마다 +1, 환생 +2)'));
         }
       });
       c.add([bg, name, lvl, desc]);
@@ -1059,13 +1072,13 @@ export class UIScene extends Phaser.Scene {
     c.add(this.rankNameText);
 
     const nameBtn = this.add.image(GAME_WIDTH - 262, PANEL_Y + 42, 'btn-buy');
-    const nameBtnT = this.add.text(GAME_WIDTH - 262, PANEL_Y + 42, '이름 변경', {
+    const nameBtnT = this.add.text(GAME_WIDTH - 262, PANEL_Y + 42, t('rank.rename', '이름 변경'), {
       fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     nameBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.changeName());
 
     const subBtn = this.add.image(GAME_WIDTH - 96, PANEL_Y + 42, 'btn-buy');
-    const subBtnT = this.add.text(GAME_WIDTH - 96, PANEL_Y + 42, '점수 등록', {
+    const subBtnT = this.add.text(GAME_WIDTH - 96, PANEL_Y + 42, t('rank.submit', '점수 등록'), {
       fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     subBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.submitScore());
@@ -1084,20 +1097,21 @@ export class UIScene extends Phaser.Scene {
       const st = Tournament.status();
       if (st.kind === 'open') {
         this.showPopup(
-          '주말 토너먼트',
-          '새 세이브로 최고 스테이지 경쟁!\n종료 시 스테이지 10당 유물 1개.\n메인 진행은 안전하게 보관됩니다.',
+          t('tour.title', '주말 토너먼트'),
+          t('tour.joinBody', '새 세이브로 최고 스테이지 경쟁!\n종료 시 스테이지 10당 유물 1개.\n메인 진행은 안전하게 보관됩니다.'),
           [
-            { label: '참가하기', on: () => Tournament.enter(this.state) },
-            { label: '취소', on: () => { /* noop */ } },
+            { label: t('tour.join', '참가하기'), on: () => Tournament.enter(this.state) },
+            { label: t('btn.cancel', '취소'), on: () => { /* noop */ } },
           ],
         );
       } else if (st.kind === 'running') {
         this.showPopup(
-          '토너먼트 종료',
-          `현재 기록: 스테이지 ${this.state.maxStage}\n지금 종료하면 유물 ${Math.floor(this.state.maxStage / 10)}개를 받고\n메인 세이브로 돌아갑니다.`,
+          t('tour.endTitle', '토너먼트 종료'),
+          t('tour.endBody', '현재 기록: 스테이지 {n}\n지금 종료하면 유물 {r}개를 받고\n메인 세이브로 돌아갑니다.',
+        { n: this.state.maxStage, r: Math.floor(this.state.maxStage / 10) }),
           [
-            { label: '종료하기', on: () => Tournament.finish(this.state) },
-            { label: '계속하기', on: () => { /* noop */ } },
+            { label: t('tour.endBtn', '종료하기'), on: () => Tournament.finish(this.state) },
+            { label: t('btn.continue', '계속하기'), on: () => { /* noop */ } },
           ],
         );
       }
@@ -1105,7 +1119,7 @@ export class UIScene extends Phaser.Scene {
     c.add([this.tourneyText, this.tourneyBtn, this.tourneyBtnText]);
 
     // [개인|클랜] 토글
-    ['개인 랭킹', '클랜'].forEach((label, i) => {
+    [t('rank.solo', '개인 랭킹'), t('rank.clan', '클랜')].forEach((label, i) => {
       const x = GAME_WIDTH / 2 + (i === 0 ? -110 : 110);
       const img = this.add.image(x, PANEL_Y + 134, i === 0 ? 'tab-on' : 'tab-off').setScale(1.4, 0.82);
       const txt = this.add.text(x, PANEL_Y + 134, label, {
@@ -1137,7 +1151,7 @@ export class UIScene extends Phaser.Scene {
 
     // 클랜 뷰: 주간 클랜 보스 (로컬 우선)
     this.clanView = this.add.container(0, 0).setVisible(false);
-    this.clanView.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 172, '주간 클랜 보스', {
+    this.clanView.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 172, t('clan.title', '주간 클랜 보스'), {
       fontFamily: FONT, fontSize: '22px', color: '#ff9c9c', fontStyle: 'bold',
     }).setOrigin(0.5));
     this.clanView.add(this.add.image(GAME_WIDTH / 2, PANEL_Y + 210, 'hpbar-bg'));
@@ -1148,20 +1162,21 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.clanView.add(this.clanInfo);
     this.clanAtkBtn = this.add.image(GAME_WIDTH / 2, PANEL_Y + 330, 'btn-boss');
-    this.clanAtkText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 330, '공격! (30초 전투)', {
+    this.clanAtkText = this.add.text(GAME_WIDTH / 2, PANEL_Y + 330, t('clan.attack', '공격! (30초 전투)'), {
       fontFamily: FONT, fontSize: '21px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.clanAtkBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       const r = ClanBoss.attack(this.state);
       if (!r) return;
       this.showToast(r.killed
-        ? `클랜 보스 처치! 유물 +${ClanBoss.CLAN_BOSS_REWARD_RELICS}`
-        : `피해 ${fmt(r.damage)}!`);
+        ? t('clan.killed', '클랜 보스 처치! 유물 +{n}',
+          { n: ClanBoss.CLAN_BOSS_REWARD_RELICS })
+        : t('clan.damage', '피해 {n}!', { n: fmt(r.damage) }));
       this.refreshPanel();
     });
     this.clanView.add([this.clanAtkBtn, this.clanAtkText]);
     this.clanView.add(this.add.text(GAME_WIDTH / 2, PANEL_Y + 400,
-      '처치 보상: 유물 15개 · 공격권은 매주 월요일 3회 충전\n온라인 클랜(합산 랭킹·공동 보스)은 Supabase 연동 시 활성화', {
+      t('clan.note', '처치 보상: 유물 15개 · 공격권은 매주 월요일 3회 충전\n온라인 클랜(합산 랭킹·공동 보스)은 Supabase 연동 시 활성화'), {
         fontFamily: FONT, fontSize: '14px', color: '#9a8bb8', align: 'center', lineSpacing: 6,
       }).setOrigin(0.5));
     c.add(this.clanView);
@@ -1174,8 +1189,10 @@ export class UIScene extends Phaser.Scene {
     this.clanHpFill.setScale(Math.max(0.001, ratio), 1);
     const left = ClanBoss.attacksLeft(this.state);
     this.clanInfo.setText(b.killed
-      ? '이번 주 보스를 처치했습니다!\n다음 보스는 월요일에 나타납니다.'
-      : `HP ${fmt(b.hpLeft)} / ${fmt(b.hpMax)}\n남은 공격권 ${left} / ${ClanBoss.CLAN_BOSS_ATTACKS_PER_WEEK}`);
+      ? t('clan.done', '이번 주 보스를 처치했습니다!\n다음 보스는 월요일에 나타납니다.')
+      : t('clan.status', 'HP {hp} / {max}\n남은 공격권 {left} / {total}',
+        { hp: fmt(b.hpLeft), max: fmt(b.hpMax), left,
+          total: ClanBoss.CLAN_BOSS_ATTACKS_PER_WEEK }));
     const can = !b.killed && left > 0;
     this.clanAtkBtn.setAlpha(can ? 1 : 0.4);
     if (can) this.clanAtkBtn.setInteractive({ useHandCursor: true });
@@ -1187,16 +1204,17 @@ export class UIScene extends Phaser.Scene {
     const hrs = (ms: number) => Math.max(1, Math.ceil(ms / 3_600_000));
     if (st.kind === 'closed') {
       const best = Tournament.historyBest();
-      this.tourneyText.setText(`주말 토너먼트 — ${hrs(st.opensInMs)}시간 후 시작`
-        + (best ? `  (최고 ${best.stage})` : ''));
+      this.tourneyText.setText(t('tour.opensIn', '주말 토너먼트 — {h}시간 후 시작', { h: hrs(st.opensInMs) })
+        + (best ? t('tour.best', '  (최고 {n})', { n: best.stage }) : ''));
       this.tourneyBtnText.setText('대기');
       this.setEnabled(this.tourneyBtn, false);
     } else if (st.kind === 'open') {
-      this.tourneyText.setText(`토너먼트 진행 중! 마감까지 ${hrs(st.closesInMs)}시간`);
+      this.tourneyText.setText(t('tour.open', '토너먼트 진행 중! 마감까지 {h}시간', { h: hrs(st.closesInMs) }));
       this.tourneyBtnText.setText('참가');
       this.setEnabled(this.tourneyBtn, true);
     } else {
-      this.tourneyText.setText(`참가 중 — 기록 ${this.state.maxStage} · ${hrs(st.closesInMs)}시간 남음`);
+      this.tourneyText.setText(t('tour.in', '참가 중 — 기록 {n} · {h}시간 남음',
+        { n: this.state.maxStage, h: hrs(st.closesInMs) }));
       this.tourneyBtnText.setText('종료');
       this.setEnabled(this.tourneyBtn, true);
     }
@@ -1206,7 +1224,7 @@ export class UIScene extends Phaser.Scene {
 
   private myName(): string {
     if (!this.state.playerName) {
-      this.state.setPlayerName(`용사${1000 + Math.floor(Math.random() * 9000)}`);
+      this.state.setPlayerName(t('rank.defaultName', '용사{n}', { n: 1000 + Math.floor(Math.random() * 9000) }));
     }
     return this.state.playerName;
   }
@@ -1222,30 +1240,30 @@ export class UIScene extends Phaser.Scene {
 
   private async submitScore(): Promise<void> {
     const err = await this.lb.submit(this.myName(), this.state.maxStage, this.state.relicsEarned);
-    this.showToast(err ?? '점수가 등록되었습니다!');
+    this.showToast(err ?? t('rank.submitted', '점수가 등록되었습니다!'));
     if (!err) this.loadRanking();
   }
 
   private refreshRankHeader(): void {
-    const modeTag = this.lb.mode === 'local' ? ' (로컬)' : '';
+    const modeTag = this.lb.mode === 'local' ? t('rank.localTag', ' (로컬)') : '';
     this.rankNameText.setText(`${this.myName()}${modeTag}`);
   }
 
   private async loadRanking(): Promise<void> {
     this.refreshRankHeader();
     const dLeft = Math.max(1, Math.ceil(Season.seasonEndsInMs() / 86_400_000));
-    const seasonTag = `시즌 ${Season.seasonKey()} · 종료 D-${dLeft}`;
+    const seasonTag = t('rank.season', '시즌 {s} · 종료 D-{d}', { s: Season.seasonKey(), d: dLeft });
     this.rankStatus.setText(this.lb.mode === 'local'
-      ? `${seasonTag} · 오프라인 모드`
-      : `${seasonTag} · 불러오는 중...`);
+      ? t('rank.offline', '{s} · 오프라인 모드', { s: seasonTag })
+      : t('rank.loading', '{s} · 불러오는 중...', { s: seasonTag }));
     const entries = await this.lb.top(8);
     if (entries === null) {
-      this.rankStatus.setText('서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
+      this.rankStatus.setText(t('rank.connFail', '서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.'));
       this.renderRanking([]);
       return;
     }
     if (this.lb.mode === 'remote') {
-      this.rankStatus.setText(entries.length === 0 ? '기록이 없습니다' : '');
+      this.rankStatus.setText(entries.length === 0 ? t('rank.empty', '기록이 없습니다') : '');
     }
     this.renderRanking(entries);
   }
@@ -1255,7 +1273,8 @@ export class UIScene extends Phaser.Scene {
       const e = entries[i];
       if (!e) { line.setText(''); return; }
       const me = e.isMe || e.name === this.state.playerName;
-      line.setText(`${String(i + 1).padStart(2, ' ')}.  ${e.name}  —  스테이지 ${e.stage}`)
+      line.setText(t('rank.row', '{i}.  {name}  —  스테이지 {stage}',
+        { i: String(i + 1).padStart(2, ' '), name: e.name, stage: e.stage }))
         .setColor(me ? '#f9e79f' : '#ffffff');
     });
   }
@@ -1275,7 +1294,8 @@ export class UIScene extends Phaser.Scene {
     this.state.on('quest', () => this.refreshPanel());
     this.state.on('pet', (...args: unknown[]) => {
       const pt = PETS[args[0] as number];
-      this.showToast(`펫 알 획득! ${pt.name} Lv.${args[1]} (${pt.desc})`);
+      this.showToast(t('pet.got', '펫 알 획득! {name} Lv.{lv} ({desc})',
+        { name: petName(pt), lv: args[1] as number, desc: petDesc(pt) }));
     });
     this.state.on('drop', (...args: unknown[]) => {
       const item = args[0] as EquipItem;
@@ -1283,8 +1303,10 @@ export class UIScene extends Phaser.Scene {
       const r = RARITIES[item.rarity];
       const slot = EQUIP_SLOTS[item.slot];
       this.showToast(equipped
-        ? `[${r.name}] ${slot.name} 획득! +${item.statPct}%`
-        : `[${r.name}] ${slot.name} 드롭 (기존이 더 좋음)`);
+        ? t('gear.got', '[{r}] {slot} 획득! +{pct}%',
+        { r: rarityName(r, item.rarity), slot: slotName(slot), pct: item.statPct })
+        : t('gear.gotWorse', '[{r}] {slot} 드롭 (기존이 더 좋음)',
+        { r: rarityName(r, item.rarity), slot: slotName(slot) }));
       this.refreshPanel();
     });
 
@@ -1302,26 +1324,26 @@ export class UIScene extends Phaser.Scene {
     Sfx.play('claim');
     Haptics.buzz(25);
     if (!st.isGoldBoostActive()) {
-      this.showToast('요정을 잡았다! 광고 재생 중...');
+      this.showToast(t('fairy.caught', '요정을 잡았다! 광고 재생 중...'));
       this.ads.offer('gold-boost', () => st.activateGoldBoost(), (ok) => {
-        if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+        if (!ok) { this.showToast(t('ad.failed', '광고를 불러오지 못했습니다')); return; }
         Sfx.play('claim');
         st.recordAdWatch();
-        this.showToast('30분간 골드 획득 2배!');
+        this.showToast(t('fairy.goldBoost', '30분간 골드 획득 2배!'));
         this.refreshPanel();
       });
     } else if (st.anySkillOnCooldown()) {
-      this.showToast('요정을 잡았다! 광고 재생 중...');
+      this.showToast(t('fairy.caught', '요정을 잡았다! 광고 재생 중...'));
       this.ads.offer('cooldowns', () => st.resetSkillCooldowns(), (ok) => {
-        if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+        if (!ok) { this.showToast(t('ad.failed', '광고를 불러오지 못했습니다')); return; }
         Sfx.play('claim');
         st.recordAdWatch();
-        this.showToast('스킬 쿨다운이 초기화되었습니다!');
+        this.showToast(t('fairy.cdReset', '스킬 쿨다운이 초기화되었습니다!'));
         this.refreshPanel();
       });
     } else {
       // 둘 다 필요 없을 때: 보상 없이 지나가되 이유를 알린다
-      this.showToast('요정이 웃으며 지나갔다 (지금은 받을 보상이 없어요)');
+      this.showToast(t('fairy.nothing', '요정이 웃으며 지나갔다 (지금은 받을 보상이 없어요)'));
     }
   }
 
@@ -1343,7 +1365,8 @@ export class UIScene extends Phaser.Scene {
 
   private refreshGold(): void {
     const vip = this.state.vipTier();
-    this.gemText?.setText(`${fmt(this.state.gems)}  [상점]${vip > 0 ? `  VIP${vip}` : ''}`);
+    this.gemText?.setText(`${fmt(this.state.gems)}  ${t('top.shop', '[상점]')}`
+      + (vip > 0 ? `  VIP${vip}` : ''));
     this.goldText.setText(fmt(this.state.gold));
     this.dpsText.setText(`DPS ${fmt(this.state.totalDps())}`);
     this.refreshAfford();
@@ -1354,25 +1377,27 @@ export class UIScene extends Phaser.Scene {
     const tourney = this.registry.get('tournamentMode') === true;
     const zone = zoneFor(st.stage);
     this.stageText.setText(tourney
-      ? `토너먼트 · ${zone.name} ${st.stage}`
-      : `${zone.name} · 스테이지 ${st.stage}`)
+      ? t('hud.tourneyStage', '토너먼트 · {zone} {n}', { zone: zoneName(zone), n: st.stage })
+      : t('hud.stage', '{zone} · 스테이지 {n}', { zone: zoneName(zone), n: st.stage }))
       .setColor(tourney ? '#f7dc6f' : '#ffffff');
     if (st.mode === 'boss') {
-      this.progText.setText('보스 전투 중!').setColor('#ff9c9c');
+      this.progText.setText(t('hud.bossFight', '보스 전투 중!')).setColor('#ff9c9c');
     } else {
       this.progText.setText(`${st.kills} / ${MONSTERS_PER_STAGE - 1}`).setColor('#c9b8e8');
     }
     this.bossBtn.setVisible(st.mode === 'farm' && st.kills >= MONSTERS_PER_STAGE - 1);
     // 환생 버튼 라벨
-    this.prestigeLabel.setText(st.canPrestige() ? `환생 +${fmt(st.prestigeGain())}` : '환생');
+    this.prestigeLabel.setText(st.canPrestige()
+      ? t('sm.prestigeGain', '환생 +{n}', { n: fmt(st.prestigeGain()) })
+      : t('sm.prestige', '환생'));
     this.prestigeBtn.setAlpha(st.canPrestige() ? 1 : 0.45);
   }
 
   private refreshPanel(): void {
     if (!this.tapName) return; // buildPanel 이전 (create 초기) 호출 방어
     const st = this.state;
-    this.tapName.setText(`탭 공격력  Lv.${st.tapLevel}`);
-    this.tapSub.setText(`탭당 ${fmt(st.tapDamage())}`);
+    this.tapName.setText(t('sm.tapPower', '탭 공격력', {}) + `  Lv.${st.tapLevel}`);
+    this.tapSub.setText(t('sm.perTap', '탭당 {n}', { n: fmt(st.tapDamage()) }));
     this.tapBtnText.setText(fmt(st.tapCost()));
     const totalPages = Math.ceil(HEROES.length / HEROES_PER_PAGE);
     this.heroPageLabel.setText(`${this.heroPage + 1} / ${totalPages}`);
@@ -1388,24 +1413,31 @@ export class UIScene extends Phaser.Scene {
       // 생성 초상이 있으면 이니셜은 얼굴을 가릴 뿐이다 — 절차 텍스처일 때만 표기한다
       const art = (this.registry.get('generatedArt') as string[] | undefined) ?? [];
       const drawn = art.includes('hero' + h.id);
-      row.initial.setText(drawn ? '' : h.name.charAt(0)).setVisible(visible && !drawn);
-      row.name.setText(`${h.name} · ${h.title}`);
+      row.initial.setText(drawn ? '' : heroName(h).charAt(0)).setVisible(visible && !drawn);
+      row.name.setText(`${heroName(h)} · ${heroTitle(h)}`);
       const active = st.heroPassivesActive(h.id);
       const next = h.passives.find((ps) => lvl < ps.unlockLevel);
       const passive = active > 0
-        ? ` · P${active}/${h.passives.length} ${h.passives[active - 1].desc}`
-        : (lvl > 0 && next ? ` · ${next.unlockLevel}렙: ${next.desc}` : '');
-      row.sub.setText(lvl === 0 ? '미고용' : `Lv.${lvl} · DPS ${fmt(st.heroDps(h.id))}${passive}`);
-      row.btnText.setText(lvl === 0 ? `고용 ${fmt(st.heroCost(h.id))}` : fmt(st.heroCost(h.id)));
+        ? ` · P${active}/${h.passives.length} ${heroPassive(h, active - 1)}`
+        : (lvl > 0 && next
+          ? ' · ' + t('hero.nextPassive', '{lv}렙: {desc}',
+                      { lv: next.unlockLevel,
+                        desc: heroPassive(h, h.passives.indexOf(next)) })
+          : '');
+      row.sub.setText(lvl === 0 ? t('hero.unhired', '미고용')
+        : `Lv.${lvl} · DPS ${fmt(st.heroDps(h.id))}${passive}`);
+      row.btnText.setText(lvl === 0 ? t('hero.hire', '고용 {n}', { n: fmt(st.heroCost(h.id)) }) : fmt(st.heroCost(h.id)));
     });
 
     // 환생 행 (소드마스터 탭)
     this.prestigeSub.setText(st.canPrestige()
-      ? `유물 +${fmt(st.prestigeGain())} 획득 후 스테이지 1부터 다시`
-      : `최고 스테이지 ${PRESTIGE_MIN_STAGE} 도달 시 해금 (현재 ${st.maxStage})`);
+      ? t('sm.prestigeReady', '유물 +{n} 획득 후 스테이지 1부터 다시',
+          { n: fmt(st.prestigeGain()) })
+      : t('sm.prestigeLocked', '최고 스테이지 {n} 도달 시 해금 (현재 {cur})',
+          { n: PRESTIGE_MIN_STAGE, cur: st.maxStage }));
 
     // 유물 탭
-    this.relicText.setText(`보유 유물  ${fmt(st.relics)}개`);
+    this.relicText.setText(t('relic.owned', '보유 유물  {n}개', { n: fmt(st.relics) }));
     const aPages = Math.ceil(ARTIFACTS.length / ARTIFACTS_PER_PAGE);
     this.artifactPageLabel.setText(`${this.artifactPage + 1} / ${aPages}`);
     this.artifactRows.forEach((row, i) => {
@@ -1416,13 +1448,14 @@ export class UIScene extends Phaser.Scene {
       if (!a) return;
       row.icon.setTexture('artifact' + (a.id % 20)); // 아이콘 20종 재사용
       const lvl = st.artifactLevels[a.id];
-      row.name.setText(`${a.name}  Lv.${lvl}${a.maxLevel > 0 ? `/${a.maxLevel}` : ''}`);
-      row.desc.setText(`레벨당 ${a.desc}`);
-      row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : `유물 ${fmt(st.artifactCost(a.id))}`);
+      row.name.setText(`${artifactName(a)}  Lv.${lvl}${a.maxLevel > 0 ? `/${a.maxLevel}` : ''}`);
+      row.desc.setText(t('relic.perLevel', '레벨당 {desc}', { desc: artifactDesc(a) }));
+      row.btnText.setText(st.isArtifactMaxed(a.id) ? 'MAX' : t('relic.cost', '유물 {n}', { n: fmt(st.artifactCost(a.id)) }));
     });
 
     // 스킬트리 (소드마스터 탭)
-    this.spText.setText(`SP ${st.spAvailable()} / 누적 ${st.spEarned()}`);
+    this.spText.setText(t('sm.sp', 'SP {avail} / 누적 {total}',
+      { avail: st.spAvailable(), total: st.spEarned() }));
     this.setEnabled(this.respecBtn, st.spSpent() > 0 && st.relics >= TREE_RESPEC_COST);
     this.treeBranchToggle.forEach((t, b) => t.img.setTexture(b === this.treeBranch ? 'tab-on' : 'tab-off'));
     const branchNodes = SKILL_TREE.filter((n) => n.branch === this.treeBranch);
@@ -1433,9 +1466,9 @@ export class UIScene extends Phaser.Scene {
       const lvl = st.treeLevels[n.id];
       const unlocked = st.isNodeUnlocked(n.id);
       const canBuy = st.canBuyNode(n.id);
-      node.name.setText(n.name);
+      node.name.setText(treeName(n));
       node.lvl.setText(`Lv.${lvl} / ${n.maxLevel}`);
-      node.desc.setText(`${n.desc} · SP ${treeNodeCost(n)}`);
+      node.desc.setText(`${treeDesc(n)} · SP ${treeNodeCost(n)}`);
       node.bg.setAlpha(unlocked ? (canBuy ? 1 : 0.75) : 0.3);
       node.name.setAlpha(unlocked ? 1 : 0.4);
       node.lvl.setColor(lvl >= n.maxLevel ? '#7bed8d' : canBuy ? '#f9e79f' : '#9a8bb8');
@@ -1446,26 +1479,31 @@ export class UIScene extends Phaser.Scene {
     EQUIP_SLOTS.forEach((slot, i) => {
       const row = this.equipRows[i];
       const item = st.equipment[slot.id];
-      const statName = slot.stat === 'tap' ? '탭 데미지' : slot.stat === 'dps' ? '영웅 DPS' : '골드 획득';
+      const statName = slot.stat === 'tap' ? t('stat.tap', '탭 데미지')
+        : slot.stat === 'dps' ? t('stat.dps', '영웅 DPS') : t('stat.gold', '골드 획득');
       if (item) {
         const r = RARITIES[item.rarity];
-        row.title.setText(`${slot.name} · ${r.name}`)
+        row.title.setText(`${slotName(slot)} · ${rarityName(r, item.rarity)}`)
           .setColor('#' + r.color.toString(16).padStart(6, '0'));
-        row.sub.setText(`${statName} +${item.statPct}%  (스테이지 ${item.stage} 획득)`);
+        row.sub.setText(t('gear.owned', '{stat} +{pct}%  (스테이지 {n} 획득)',
+          { stat: statName, pct: item.statPct, n: item.stage }));
       } else {
-        row.title.setText(`${slot.name} · 없음`).setColor('#8a7f9e');
-        row.sub.setText(`${statName} 보너스 — 보스 처치로 획득`);
+        row.title.setText(t('gear.empty', '{slot} · 없음', { slot: slotName(slot) }))
+          .setColor('#8a7f9e');
+        row.sub.setText(t('gear.hint', '{stat} 보너스 — 보스 처치로 획득', { stat: statName }));
       }
     });
 
     const setPct = st.equipSetBonus();
     this.equipSetText.setText(setPct > 0
-      ? `세트 효과 발동! 모든 데미지 +${Math.round(setPct * 100)}%`
-      : '같은 등급 3종 장착 시 세트 효과 (모든 데미지 +10~60%)');
+      ? t('gear.setOn', '세트 효과 발동! 모든 데미지 +{pct}%',
+          { pct: Math.round(setPct * 100) })
+      : t('gear.setHint', '같은 등급 3종 장착 시 세트 효과 (모든 데미지 +10~60%)'));
 
     // 퀘스트 탭 (서브탭: 일일/업적)
     st.ensureDaily();
-    this.questToggle.forEach((t, i) => t.img.setTexture(i === this.questSubTab ? 'tab-on' : 'tab-off'));
+    this.questToggle.forEach((tb, i) =>
+      tb.img.setTexture(i === this.questSubTab ? 'tab-on' : 'tab-off'));
     const showDaily = this.questSubTab === 0;
     const todays = st.todaysQuests();
     this.questRows.forEach((row, i) => {
@@ -1474,12 +1512,12 @@ export class UIScene extends Phaser.Scene {
       const vis = showDaily && !!q;
       [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(vis));
       if (!vis || !q) return;
-      row.desc.setText(q.desc);
+      row.desc.setText(questDesc(q));
       const prog = st.questProgress(q.id);
       const claimed = st.daily.claimed[q.id];
-      const rewardTxt = q.reward === 'gold' ? '골드 보상' : `유물 ${q.amount}개`;
-      row.prog.setText(claimed ? '완료!' : `${prog} / ${q.target} · ${rewardTxt}`);
-      row.btnText.setText(claimed ? '완료' : '받기');
+      const rewardTxt = q.reward === 'gold' ? t('quest.goldReward', '골드 보상') : t('quest.relicReward', '유물 {n}개', { n: q.amount });
+      row.prog.setText(claimed ? t('quest.complete', '완료!') : `${prog} / ${q.target} · ${rewardTxt}`);
+      row.btnText.setText(claimed ? t('btn.done', '완료') : t('btn.claim', t('btn.claim', '받기')));
       this.setEnabled(row.btn, st.canClaimQuest(q.id));
     });
     const achPages = Math.ceil(ACHIEVEMENTS.length / 8);
@@ -1490,10 +1528,11 @@ export class UIScene extends Phaser.Scene {
       const vis = !showDaily && !!a;
       [row.bg, row.desc, row.prog, row.btn, row.btnText].forEach((o) => o.setVisible(vis));
       if (!vis || !a) return;
-      row.desc.setText(a.desc);
+      row.desc.setText(achDesc(a));
       const claimed = st.achClaimed[a.id];
-      row.prog.setText(claimed ? '완료!' : `${fmt(st.achProgress(a.id))} / ${fmt(a.target)} · 유물 ${a.rewardRelics}`);
-      row.btnText.setText(claimed ? '완료' : '받기');
+      row.prog.setText(claimed ? t('quest.complete', '완료!') : t('ach.progress', '{cur} / {target} · 유물 {r}',
+        { cur: fmt(st.achProgress(a.id)), target: fmt(a.target), r: a.rewardRelics }));
+      row.btnText.setText(claimed ? t('btn.done', '완료') : t('btn.claim', '받기'));
       this.setEnabled(row.btn, st.canClaimAch(a.id));
     });
     this.refreshTourneyCard();
@@ -1503,14 +1542,15 @@ export class UIScene extends Phaser.Scene {
       this.petTexts[i].setText(lvl > 0 ? `Lv.${lvl}` : '—')
         .setColor(lvl > 0 ? '#ffffff' : '#6f6488');
     });
-    this.rankToggle.forEach((t, i) => t.img.setTexture(i === this.rankSubTab ? 'tab-on' : 'tab-off'));
+    this.rankToggle.forEach((tb, i) =>
+      tb.img.setTexture(i === this.rankSubTab ? 'tab-on' : 'tab-off'));
     this.personalView?.setVisible(this.rankSubTab === 0);
     this.clanView?.setVisible(this.rankSubTab === 1);
     if (this.rankSubTab === 1) this.refreshClanView();
 
     // 골드 부스트 잔여 (요정 보상)
     this.boostBtnText.setText(st.isGoldBoostActive()
-      ? `골드 x2  ${Math.ceil(st.goldBoostLeft() / 60_000)}분`
+      ? t('buff.goldBoost', '골드 x2  {m}분', { m: Math.ceil(st.goldBoostLeft() / 60_000) })
       : '');
 
     // 퀘스트 아이콘 배지 — 수령 가능한 퀘스트/업적 수
@@ -1553,14 +1593,14 @@ export class UIScene extends Phaser.Scene {
   private showToast(msg: string): void {
     this.toast?.destroy();
     // depth 48: 스킬바 위, 모달 딤(50) 아래
-    const t = this.add.text(GAME_WIDTH / 2, 640, msg, {
+    const msgText = this.add.text(GAME_WIDTH / 2, 640, msg, {
       fontFamily: FONT, fontSize: '22px', color: '#ffffff', fontStyle: 'bold',
       backgroundColor: '#241b3ecc', padding: { x: 18, y: 10 },
     }).setOrigin(0.5).setDepth(48);
-    this.toast = t;
+    this.toast = msgText;
     this.tweens.add({
-      targets: t, y: 610, alpha: 0, duration: 1400, ease: 'Quad.In', delay: 300,
-      onComplete: () => { if (this.toast === t) this.toast = null; t.destroy(); },
+      targets: msgText, y: 610, alpha: 0, duration: 1400, ease: 'Quad.In', delay: 300,
+      onComplete: () => { if (this.toast === msgText) this.toast = null; msgText.destroy(); },
     });
   }
 
@@ -1582,7 +1622,7 @@ export class UIScene extends Phaser.Scene {
     this.syncBlocking();
     const top = 200;
     parts.push(this.add.image(GAME_WIDTH / 2, 620, 'panel').setDepth(71).setScale(0.94, 1.45));
-    parts.push(this.add.text(GAME_WIDTH / 2, top + 40, '설정', {
+    parts.push(this.add.text(GAME_WIDTH / 2, top + 40, t('set.title', '설정'), {
       fontFamily: FONT, fontSize: '30px', color: '#f9e79f', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(72));
     const close = this.add.text(GAME_WIDTH - 70, top + 40, '✕', {
@@ -1594,12 +1634,12 @@ export class UIScene extends Phaser.Scene {
     /** 라벨 + 우측 버튼 텍스트들. 반환된 refresh 로 상태 표기 갱신 */
     const textBtn = (x: number, y: number, label: string, on: () => void):
     Phaser.GameObjects.Text => {
-      const t = this.add.text(x, y, label, {
+      const btn = this.add.text(x, y, label, {
         fontFamily: FONT, fontSize: '18px', color: '#9fd8ff', fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(73).setInteractive({ useHandCursor: true });
-      t.on('pointerdown', on);
-      parts.push(t);
-      return t;
+      btn.on('pointerdown', on);
+      parts.push(btn);
+      return btn;
     };
     const label = (y: number, text: string): void => {
       parts.push(this.add.image(GAME_WIDTH / 2, y, 'row').setDepth(72).setScale(1, 1.2));
@@ -1611,58 +1651,73 @@ export class UIScene extends Phaser.Scene {
 
     // 효과음: 토글 + 음량 (20% 스텝)
     let y = top + 104;
-    label(y, '효과음');
+    label(y, t('set.sfx', '효과음'));
     const sfxState = this.add.text(GAME_WIDTH - 210, y, '', {
       fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(73);
     parts.push(sfxState);
-    const paintSfx = () => sfxState.setText(Sfx.isEnabled() ? `켬 · ${pct(Sfx.volume())}` : '끔');
+    const paintSfx = () => sfxState.setText(Sfx.isEnabled() ? t('set.on', '켬 · {v}', { v: pct(Sfx.volume()) }) : t('set.off', '끔'));
     paintSfx();
     textBtn(GAME_WIDTH - 300, y, '−', () => { Sfx.setVolume(Sfx.volume() - 0.2); paintSfx(); Sfx.play('tab'); });
     textBtn(GAME_WIDTH - 120, y, '+', () => { Sfx.setVolume(Sfx.volume() + 0.2); paintSfx(); Sfx.play('tab'); });
-    textBtn(GAME_WIDTH - 62, y, '토글', () => { Sfx.toggle(); paintSfx(); Sfx.play('tab'); });
+    textBtn(GAME_WIDTH - 62, y, t('set.toggle', '토글'), () => { Sfx.toggle(); paintSfx(); Sfx.play('tab'); });
 
     // 배경음악
     y += 66;
-    label(y, '배경음악');
+    label(y, t('set.bgm', '배경음악'));
     const bgmState = this.add.text(GAME_WIDTH - 210, y, '', {
       fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(73);
     parts.push(bgmState);
-    const paintBgm = () => bgmState.setText(Bgm.isEnabled() ? `켬 · ${pct(Bgm.volume())}` : '끔');
+    const paintBgm = () => bgmState.setText(Bgm.isEnabled() ? t('set.on', '켬 · {v}', { v: pct(Bgm.volume()) }) : t('set.off', '끔'));
     paintBgm();
     textBtn(GAME_WIDTH - 300, y, '−', () => { Bgm.setVolume(Bgm.volume() - 0.2); paintBgm(); });
     textBtn(GAME_WIDTH - 120, y, '+', () => { Bgm.setVolume(Bgm.volume() + 0.2); paintBgm(); });
-    textBtn(GAME_WIDTH - 62, y, '토글', () => { Bgm.toggle(); paintBgm(); });
+    textBtn(GAME_WIDTH - 62, y, t('set.toggle', '토글'), () => { Bgm.toggle(); paintBgm(); });
 
     // 진동
     y += 66;
-    label(y, '진동 (모바일)');
+    label(y, t('set.vibrate', '진동 (모바일)'));
     const vibState = this.add.text(GAME_WIDTH - 210, y, '', {
       fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(73);
     parts.push(vibState);
-    const paintVib = () => vibState.setText(Haptics.isEnabled() ? '켬' : '끔');
+    const paintVib = () => vibState.setText(Haptics.isEnabled() ? t('set.onPlain', '켬') : t('set.off', '끔'));
     paintVib();
-    textBtn(GAME_WIDTH - 62, y, '토글', () => { Haptics.toggle(); paintVib(); if (Haptics.isEnabled()) Haptics.buzz(30); });
+    textBtn(GAME_WIDTH - 62, y, t('set.toggle', '토글'), () => { Haptics.toggle(); paintVib(); if (Haptics.isEnabled()) Haptics.buzz(30); });
 
     // 세이브 백업/복원
     y += 66;
-    label(y, '세이브 백업');
-    textBtn(GAME_WIDTH - 62, y, '복사', () => {
+    label(y, t('set.backup', '세이브 백업'));
+    textBtn(GAME_WIDTH - 62, y, t('set.copy', '복사'), () => {
       const json = DevTools.exportSave(this.state);
-      if (!json) { this.showToast('내보낼 세이브가 없습니다'); return; }
+      if (!json) { this.showToast(t('set.noSave', '내보낼 세이브가 없습니다')); return; }
       void navigator.clipboard?.writeText(json)
-        .then(() => this.showToast('세이브가 클립보드에 복사되었습니다'))
-        .catch(() => this.showToast('클립보드 접근이 거부되었습니다'));
+        .then(() => this.showToast(t('set.copied', '세이브가 클립보드에 복사되었습니다')))
+        .catch(() => this.showToast(t('set.clipDenied', '클립보드 접근이 거부되었습니다')));
     });
     y += 66;
-    label(y, '세이브 복원 (붙여넣기)');
-    textBtn(GAME_WIDTH - 62, y, '입력', () => {
-      const json = window.prompt('세이브 JSON 을 붙여넣으세요');
+    label(y, t('set.restore', '세이브 복원 (붙여넣기)'));
+    textBtn(GAME_WIDTH - 62, y, t('set.paste', '입력'), () => {
+      const json = window.prompt(t('set.pastePrompt', '세이브 JSON 을 붙여넣으세요'));
       if (!json) return;
-      if (!DevTools.importSave(json)) this.showToast('세이브 형식이 올바르지 않습니다');
+      if (!DevTools.importSave(json)) this.showToast(t('set.badSave', '세이브 형식이 올바르지 않습니다'));
       // 성공 시 importSave 가 리로드한다
+    });
+
+    // 언어 — 전환하면 두 씬을 다시 만든다 (문구가 생성 시점에 박히므로)
+    y += 66;
+    label(y, t('set.language', '언어'));
+    const langState = this.add.text(GAME_WIDTH - 210, y, langLabel(), {
+      fontFamily: FONT, fontSize: '17px', color: '#c9b8e8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(73);
+    parts.push(langState);
+    textBtn(GAME_WIDTH - 62, y, t('set.toggle', '토글'), () => {
+      setLang(nextLang());
+      Sfx.play('tab');
+      this.closeSettings();
+      this.scene.restart();
+      this.scene.get('Game')?.scene.restart();
     });
   }
 
@@ -1684,7 +1739,7 @@ export class UIScene extends Phaser.Scene {
     const panelTop = 120;
     const bg = this.add.image(GAME_WIDTH / 2, 640, 'panel').setDepth(71).setScale(0.94, 1.9);
     parts.push(bg);
-    const title = this.add.text(GAME_WIDTH / 2, panelTop + 40, '상점', {
+    const title = this.add.text(GAME_WIDTH / 2, panelTop + 40, t('ov.shop', '상점'), {
       fontFamily: FONT, fontSize: '30px', color: '#f9e79f', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(72);
     parts.push(title);
@@ -1716,15 +1771,17 @@ export class UIScene extends Phaser.Scene {
 
     // 보석 팩 (구매)
     let y = panelTop + 100;
-    parts.push(this.add.text(48, y - 34, `보석 구매 ${this.iap.isAvailable() ? '' : '— 상점 준비 중 (스토어 연동 후 활성화)'}`, {
+    parts.push(this.add.text(48, y - 34, t('shop.buyGems', '보석 구매') + (this.iap.isAvailable() ? ''
+        : ' ' + t('shop.unavailable', '— 상점 준비 중 (스토어 연동 후 활성화)')), {
       fontFamily: FONT, fontSize: '15px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0, 0.5).setDepth(72));
     GEM_PACKS.forEach((pk) => {
-      const sub = `보석 ${pk.gems}${pk.bonusDesc ? ` · ${pk.bonusDesc}` : ''}`;
+      const sub = t('shop.gemCost', '보석 {n}', { n: pk.gems })
+        + (pk.bonusDesc ? ` · ${pk.bonusDesc}` : '');
       const soldOut = this.iap.alreadyPurchased(pk.id);
-      row(y, pk.name, sub, soldOut ? '구매완료' : `₩${pk.priceKrw.toLocaleString()}`,
+      row(y, pk.name, sub, soldOut ? t('shop.owned', '구매완료') : `₩${pk.priceKrw.toLocaleString()}`,
         this.iap.isAvailable() && !soldOut, () => {
-          this.showToast('결제 진행 중...');
+          this.showToast(t('shop.paying', '결제 진행 중...'));
           void this.iap.buy(pk.id, (gems) => {
             st.grantGems(gems, true);
             if (pk.id === 'starter') {
@@ -1735,7 +1792,7 @@ export class UIScene extends Phaser.Scene {
             }
           }).then((r) => {
             if (r.ok) Sfx.play('claim');
-            this.showToast(r.ok ? '구매 완료! 보석이 지급되었습니다.' : (r.reason ?? '구매 실패'));
+            this.showToast(r.ok ? t('shop.bought', '구매 완료! 보석이 지급되었습니다.') : (r.reason ?? t('shop.failed', '구매 실패')));
             this.closeShop();
             this.refreshGold();
           });
@@ -1745,31 +1802,31 @@ export class UIScene extends Phaser.Scene {
 
     // 보석 사용 (싱크)
     y += 24;
-    parts.push(this.add.text(48, y - 34, '보석 사용', {
+    parts.push(this.add.text(48, y - 34, t('shop.spend', '보석 사용'), {
       fontFamily: FONT, fontSize: '15px', color: '#c9b8e8', fontStyle: 'bold',
     }).setOrigin(0, 0.5).setDepth(72));
     const sinks: { name: string; sub: string; cost: number; can: boolean; run: () => boolean }[] = [
       {
-        name: '스킬 쿨다운 초기화', sub: '모든 스킬을 즉시 사용 가능',
+        name: t('shop.cdReset', '스킬 쿨다운 초기화'), sub: t('shop.cdResetSub', '모든 스킬을 즉시 사용 가능'),
         cost: GEM_SINKS.cooldownReset, can: st.anySkillOnCooldown(), run: () => st.gemCooldownReset(),
       },
       {
-        name: '골드 팩', sub: '현재 스테이지 약 10분치 파밍 골드',
+        name: t('shop.goldPack', '골드 팩'), sub: t('shop.goldPackSub', '현재 스테이지 약 10분치 파밍 골드'),
         cost: GEM_SINKS.goldPack, can: true, run: () => st.gemGoldPack(),
       },
       {
-        name: '장비 상자', sub: `확률: ${EQUIP_BOX_RATES.map((r) => `${RARITY_DEFS[r.rarity].name} ${r.pct}%`).join(' / ')}`,
+        name: t('shop.box', '장비 상자'), sub: `확률: ${EQUIP_BOX_RATES.map((r) => `${RARITY_DEFS[r.rarity].name} ${r.pct}%`).join(' / ')}`,
         cost: GEM_SINKS.equipBox, can: true, run: () => st.gemEquipBox(),
       },
       {
-        name: '스킬트리 초기화', sub: `유물 ${TREE_RESPEC_COST}개 대신 보석으로`,
+        name: t('tree.respecTitle', '스킬트리 초기화'), sub: t('shop.respecSub', '유물 {n}개 대신 보석으로', { n: TREE_RESPEC_COST }),
         cost: GEM_SINKS.treeRespec, can: st.spSpent() > 0, run: () => st.gemRespecTree(),
       },
     ];
     sinks.forEach((sk) => {
-      row(y, sk.name, sk.sub, `보석 ${sk.cost}`, sk.can && st.gems >= sk.cost, () => {
+      row(y, sk.name, sk.sub, t('shop.gemCost', '보석 {n}', { n: sk.cost }), sk.can && st.gems >= sk.cost, () => {
         if (sk.run()) {
-          this.showToast(`${sk.name} 완료!`);
+          this.showToast(t('shop.spent', '{name} 완료!', { name: sk.name }));
           this.closeShop();
         }
       });
@@ -1780,9 +1837,13 @@ export class UIScene extends Phaser.Scene {
     const vip = st.vipTier();
     const next = VIP_TIERS[vip + 1];
     parts.push(this.add.text(GAME_WIDTH / 2, y + 6,
-      `VIP ${vip} — 오프라인 상한 +${VIP_TIERS[vip].offlineCapBonusHr}시간 · 퀘스트 골드 +${VIP_TIERS[vip].questGoldPct}%`
-      + (next ? `\n다음 티어까지 누적 보석 ${next.need - st.gemsPurchased}개`
-        : '\n최고 티어입니다') + '\n확률형 상품(장비 상자)의 확률은 위 표기와 같습니다.', {
+      t('shop.vip', 'VIP {v} — 오프라인 상한 +{h}시간 · 퀘스트 골드 +{g}%',
+        { v: vip, h: VIP_TIERS[vip].offlineCapBonusHr, g: VIP_TIERS[vip].questGoldPct })
+      + (next
+        ? '\n' + t('shop.vipNext', '다음 티어까지 누적 보석 {n}개',
+                   { n: next.need - st.gemsPurchased })
+        : '\n' + t('shop.vipMax', '최고 티어입니다'))
+      + '\n' + t('shop.rateNotice', '확률형 상품(장비 상자)의 확률은 위 표기와 같습니다.'), {
         fontFamily: FONT, fontSize: '13px', color: '#9a8bb8', align: 'center', lineSpacing: 5,
       }).setOrigin(0.5, 0).setDepth(72));
   }
@@ -1791,22 +1852,23 @@ export class UIScene extends Phaser.Scene {
 
   private showOfflinePopup(sec: number, gold: number): void {
     this.showPopup(
-      '어서 오세요!',
-      `${fmtDuration(sec)} 동안 자리를 비운 사이\n영웅들이 골드를 모았습니다.\n\n+${fmt(gold)} 골드`,
+      t('offline.title', '어서 오세요!'),
+      t('offline.body', '{d} 동안 자리를 비운 사이\n영웅들이 골드를 모았습니다.\n\n+{g} 골드',
+        { d: fmtDuration(sec), g: fmt(gold) }),
       [
         {
-          label: 'AD 2배 받기',
+          label: t('offline.adDouble', 'AD 2배 받기'),
           on: () => {
-            this.showToast('광고 재생 중...');
+            this.showToast(t('offline.playingAd', '광고 재생 중...'));
             // 기본 보상은 이미 지급됨 — 광고 시청 시 동일량 추가 지급
             this.ads.offer('offline-x2', () => this.state.addGold(gold), (ok) => {
-              if (!ok) { this.showToast('광고를 불러오지 못했습니다'); return; }
+              if (!ok) { this.showToast(t('ad.failed', '광고를 불러오지 못했습니다')); return; }
               this.state.recordAdWatch();
-              this.showToast(`+${fmt(gold)} 골드 추가 지급!`);
+              this.showToast(t('offline.bonus', '+{n} 골드 추가 지급!', { n: fmt(gold) }));
             });
           },
         },
-        { label: '받기', on: () => { /* 이미 지급됨 */ } },
+        { label: t('btn.claim', '받기'), on: () => { /* 이미 지급됨 */ } },
       ],
     );
   }
@@ -1815,19 +1877,20 @@ export class UIScene extends Phaser.Scene {
     const st = this.state;
     if (!st.canPrestige()) {
       this.showPopup(
-        '환생',
-        `스테이지 25 이상 도달 시\n유물을 얻고 환생할 수 있습니다.\n유물은 유물 탭에서 영구 강화에 사용합니다.\n\n현재 최고 스테이지: ${st.maxStage}`,
-        [{ label: '닫기', on: () => { /* noop */ } }],
+        t('sm.prestige', '환생'),
+        t('prestige.help', '스테이지 25 이상 도달 시\n유물을 얻고 환생할 수 있습니다.\n유물은 유물 탭에서 영구 강화에 사용합니다.\n\n현재 최고 스테이지: {n}', { n: st.maxStage }),
+        [{ label: t('btn.close', '닫기'), on: () => { /* noop */ } }],
       );
       return;
     }
     const gain = st.prestigeGain();
     this.showPopup(
-      '환생하시겠습니까?',
-      `골드·영웅·스테이지가 초기화됩니다.\n유물 +${fmt(gain)} 획득 (보유 ${fmt(st.relics)} → ${fmt(st.relics + gain)})\n구매한 유물 강화는 유지됩니다.`,
+      t('prestige.confirm', '환생하시겠습니까?'),
+      t('prestige.confirmBody', '골드·영웅·스테이지가 초기화됩니다.\n유물 +{gain} 획득 (보유 {cur} → {next})\n구매한 유물 강화는 유지됩니다.',
+        { gain: fmt(gain), cur: fmt(st.relics), next: fmt(st.relics + gain) }),
       [
-        { label: '환생하기', on: () => st.doPrestige() },
-        { label: '취소', on: () => { /* noop */ } },
+        { label: t('prestige.do', '환생하기'), on: () => st.doPrestige() },
+        { label: t('btn.cancel', '취소'), on: () => { /* noop */ } },
       ],
     );
   }

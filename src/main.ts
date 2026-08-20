@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from './config.ts';
 import { GameState } from './core/GameState.ts';
+import { initLang } from './core/i18n.ts';
+import { en } from './core/locales/en.ts';
 import { Analytics } from './core/Analytics.ts';
 import * as Tournament from './core/Tournament.ts';
 import * as Season from './core/Season.ts';
@@ -24,6 +26,7 @@ declare global {
 function boot(): void {
   if (window.__taptap) return; // vite HMR 중복 생성 방지
 
+  initLang({ en });
   const state = new GameState();
   const awaySec = state.load();
   state.ensureDaily();
