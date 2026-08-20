@@ -72,6 +72,8 @@ python3 tools/art/process.py      # 후처리 → public/assets/ + manifest.json
 | `docs/ANALYTICS.md` | 분석 이벤트 스키마 |
 | `docs/ANDROID.md` | Capacitor 안드로이드 빌드 |
 | `docs/RAIDS.md` | 레이드/카드 설계 (미구현 — 서버 확보 후) |
+| `docs/PLAY_RELEASE.md` | **출시 체크리스트 + 데이터 보안 신고 답안** |
+| `docs/PRIVACY.md` | 개인정보처리방침 초안 (게시 전 자리표시자 3개) |
 
 ## 게임 구조
 
