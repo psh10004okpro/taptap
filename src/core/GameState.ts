@@ -377,8 +377,12 @@ export class GameState extends Emitter {
 
   /** 보석 지급. purchased=true 면 VIP 누적에도 반영 (IAP 검증 성공 경로만) */
   grantGems(n: number, purchased: boolean): void {
-    this.gems += n;
-    if (purchased) this.gemsPurchased += n;
+    // 보석 지급의 단일 관문(CLAUDE.md). 여기로만 들어오므로 여기서 걸러 두면
+    // 어떤 경로에서도 음수/NaN 이 잔액과 VIP 누적을 오염시키지 못한다.
+    const amount = Math.floor(n);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    this.gems += amount;
+    if (purchased) this.gemsPurchased += amount;
     this.emit('upgrade');
   }
 

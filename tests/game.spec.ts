@@ -1447,3 +1447,26 @@ test('오디오 자동재생 정책: 첫 입력 전에는 잠겨 있고 탭 이�
   expect(await ctxState()).toBe('running');
   expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
 });
+
+test('보석 지급 관문: 음수·NaN 은 잔액과 VIP 누적을 오염시키지 못한다', async ({ page }) => {
+  const errors = await setup(page);
+  // grantGems 는 보석 지급의 단일 관문(CLAUDE.md)이라 여기서 걸러야
+  // 어떤 경로(광고/구매/치트)에서도 잔액이 깨지지 않는다.
+  const r = await page.evaluate(() => {
+    const s = window.__taptap!.state;
+    s.grantGems(100, true);
+    const base = { gems: s.gems, purchased: s.gemsPurchased, vip: s.vipTier() };
+    s.grantGems(-500, true);
+    s.grantGems(Number.NaN, true);
+    s.grantGems(0, true);
+    s.grantGems(Number.POSITIVE_INFINITY, true);
+    const after = { gems: s.gems, purchased: s.gemsPurchased };
+    s.grantGems(50.9, false);           // 소수는 내림
+    return { base, after, floored: s.gems, purchasedAfterFloor: s.gemsPurchased };
+  });
+  expect(r.after.gems).toBe(r.base.gems);
+  expect(r.after.purchased).toBe(r.base.purchased);
+  expect(r.floored).toBe(r.base.gems + 50);
+  expect(r.purchasedAfterFloor).toBe(r.base.purchased); // purchased=false 는 VIP 누적 제외
+  expect(errors, `콘솔 에러: ${errors.join('\n')}`).toHaveLength(0);
+});

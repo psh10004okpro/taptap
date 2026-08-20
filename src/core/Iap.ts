@@ -14,6 +14,12 @@ export interface IapResult {
   ok: boolean;
   /** 사용자에게 보여줄 실패 사유 (ok=false 일 때) */
   reason?: string;
+  /**
+   * 서버가 검증하며 확정한 지급 수량. 있으면 **이 값이 우선**한다 —
+   * 클라이언트의 GEM_PACKS 와 서버 PRODUCTS 가 어긋났을 때
+   * 원장(gem_ledger)에 기록된 값과 다른 수량을 지급하지 않기 위해서다.
+   */
+  gems?: number;
 }
 
 export interface IapProvider {
@@ -100,10 +106,12 @@ export class ServerVerifiedIapProvider implements IapProvider {
       body: { productId, purchaseToken: bought.purchaseToken },
     });
     if (error) return { ok: false, reason: t('iap.verifyFail', '영수증 검증에 실패했습니다.') };
-    if ((data as { ok?: boolean } | null)?.ok !== true) {
+    const res = data as { ok?: boolean; gems?: number } | null;
+    if (res?.ok !== true) {
       return { ok: false, reason: t('iap.notVerified', '영수증이 확인되지 않았습니다.') };
     }
-    return { ok: true };
+    // 서버가 원장에 기록한 수량을 그대로 돌려준다 (클라 사본을 믿지 않는다)
+    return { ok: true, gems: typeof res.gems === 'number' ? res.gems : undefined };
   }
 }
 
@@ -145,8 +153,16 @@ export class IapService {
         localStorage.setItem('taptap-iap-once', JSON.stringify([...this.purchasedOnce]));
       } catch { /* ignore */ }
     }
-    Analytics.track('iap_purchase', { product: productId, gems: pack.gems, priceKrw: pack.priceKrw });
-    onGranted(pack.gems);
-    return { ok: true };
+    // 서버 검증본이 있으면 그 수량으로 지급한다. 서버 사본과 어긋나면
+    // 원장에 기록된 것과 다른 양을 주게 되므로 클라 값은 폴백일 뿐이다.
+    const granted = Number.isFinite(result.gems) && (result.gems as number) > 0
+      ? Math.floor(result.gems as number)
+      : pack.gems;
+    Analytics.track('iap_purchase', {
+      product: productId, gems: granted, priceKrw: pack.priceKrw,
+      serverGems: result.gems ?? null,
+    });
+    onGranted(granted);
+    return { ok: true, gems: granted };
   }
 }
