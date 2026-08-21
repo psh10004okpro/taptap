@@ -21,8 +21,9 @@ OUT = os.path.normpath(os.path.join(HERE, "..", "..", "public", "assets"))
 # key prefix -> (kind, w, h)
 SPECS: list[tuple[str, str, int, int]] = [
     ("bg-zone", "bg", 720, 1280),
-    ("monster", "sprite", 200, 170),
-    ("boss", "sprite", 280, 250),
+    # src/config.ts 의 MONSTER_SIZE / BOSS_SIZE 와 반드시 같아야 한다
+    ("monster", "sprite", 280, 240),
+    ("boss", "sprite", 340, 300),
     ("hero", "circle", 42, 42),
     ("pet", "circle", 52, 52),
     ("skill", "circle", 76, 76),
@@ -41,11 +42,11 @@ def spec_for(key: str) -> tuple[str, int, int] | None:
     return best[1:] if best else None
 
 
-def edge_chroma_key(img: Image.Image, tol: int = 28) -> Image.Image:
-    """알파가 없을 때: 가장자리에서 이어진 배경색 픽셀만 투명화 (내부 동일색 보존)."""
-    img = img.convert("RGBA")
-    px = img.load()
-    w, h = img.size
+def _flood_key(img: Image.Image, tol: int) -> Image.Image:
+    """가장자리에서 이어진, 코너색과 tol 이내인 픽셀만 투명화."""
+    out = img.convert("RGBA")
+    px = out.load()
+    w, h = out.size
     corners = [px[0, 0], px[w - 1, 0], px[0, h - 1], px[w - 1, h - 1]]
     bg = tuple(sum(c[i] for c in corners) // 4 for i in range(3))
 
@@ -76,7 +77,48 @@ def edge_chroma_key(img: Image.Image, tol: int = 28) -> Image.Image:
         if x < w - 1: q.append((x + 1, y))
         if y > 0: q.append((x, y - 1))
         if y < h - 1: q.append((x, y + 1))
-    return img
+    return out
+
+
+def _stats(img: Image.Image) -> tuple[float, float]:
+    """(불투명 비율, 가장자리 테두리의 투명 비율)."""
+    a = img.getchannel("A")
+    w, h = img.size
+    total = w * h
+    opaque = sum(1 for v in a.getdata() if v > 0)
+    ring = []
+    for x in range(0, w, 3):
+        ring.append(a.getpixel((x, 1)))
+        ring.append(a.getpixel((x, h - 2)))
+    for y in range(0, h, 3):
+        ring.append(a.getpixel((1, y)))
+        ring.append(a.getpixel((w - 2, y)))
+    clear = sum(1 for v in ring if v == 0) / max(1, len(ring))
+    return opaque / total, clear
+
+
+def edge_chroma_key(img: Image.Image, tol: int = 28) -> Image.Image:
+    """알파가 없을 때 배경 제거.
+
+    배경이 완전한 단색이 아니면(실사풍 렌더의 하늘·비네팅) 낮은 허용오차로는
+    회색 조각이 남고, 그렇다고 이웃 색을 따라 걷게 하면 피사체 안쪽까지 먹는다.
+    그래서 **허용오차를 단계적으로 올리며 결과를 검사**한다:
+      - 가장자리 테두리가 98% 이상 투명해졌는가 (배경이 실제로 지워졌는가)
+      - 피사체가 5% 이상 남아 있는가 (너무 많이 먹지 않았는가)
+    두 조건을 만족하는 첫 값을 쓰고, 없으면 가장 보수적인 결과를 쓴다.
+    """
+    best = None
+    for t in (tol, 40, 52, 66):
+        cand = _flood_key(img, t)
+        opaque, clear = _stats(cand)
+        if best is None:
+            best = cand
+        if clear >= 0.98 and opaque >= 0.05:
+            return cand
+        if opaque < 0.05:      # 더 올리면 피사체가 사라진다
+            break
+        best = cand
+    return best if best is not None else img.convert("RGBA")
 
 
 def has_alpha(img: Image.Image) -> bool:

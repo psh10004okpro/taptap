@@ -3,7 +3,10 @@
 // 없는 키는 Graphics 절차 생성으로 폴백한다. 텍스처 생성은 이 씬에서만.
 // ---------------------------------------------------------------------------
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS } from '../config.ts';
+import {
+  GAME_WIDTH, GAME_HEIGHT, PANEL_Y, HEROES, SKILLS, ARTIFACTS,
+  MONSTER_SIZE, BOSS_SIZE,
+} from '../config.ts';
 
 const MONSTER_COLORS = [
   0x6fcf5a, 0x5aa8e8, 0xd86fd4, 0xe8a05a, 0x8a7de8, 0xe85a72,
@@ -87,7 +90,7 @@ export class BootScene extends Phaser.Scene {
       if (!this.missing('monster' + i)) return;
       const g = this.add.graphics();
       const dark = Phaser.Display.Color.ValueToColor(color).darken(25).color;
-      const w = 200, h = 170;
+      const w = MONSTER_SIZE.w, h = MONSTER_SIZE.h;
       // 몸통
       g.fillStyle(dark, 1);
       g.fillEllipse(w / 2, h - 62, 176, 128);
@@ -130,7 +133,7 @@ export class BootScene extends Phaser.Scene {
   private makeBoss(): void {
     if (!this.missing('boss')) return;
     const g = this.add.graphics();
-    const w = 280, h = 250;
+    const w = BOSS_SIZE.w, h = BOSS_SIZE.h;
     const color = 0xc0392b, dark = 0x7d241a;
     g.fillStyle(dark, 1);
     g.fillEllipse(w / 2, h - 90, 250, 190);

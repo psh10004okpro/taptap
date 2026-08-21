@@ -38,6 +38,19 @@ export const COLLAPSED = {
 // (고정 y 로 두면 크기가 다른 보스에서 그림자가 발과 어긋난다).
 export const MONSTER_ORIGIN_Y = 0.78;
 
+/**
+ * 스프라이트 규격 — BootScene 절차 텍스처와 tools/art/process.py 의 SPECS 가
+ * 이 값을 따른다 (세 곳이 어긋나면 생성 아트와 폴백의 크기가 달라진다).
+ * 배치 확인: 몬스터 중심 y=470, 원점 0.78 기준
+ *   몬스터 상단 470-240*0.78=283 / 하단 470+240*0.22=523
+ *   보스   상단 470-330*0.78=213 / 하단 470+330*0.22=543  (330 = 300 x BOSS_SCALE)
+ * 상단 HP 바(216)와 스킬바(684) 사이에 들어간다.
+ */
+export const MONSTER_SIZE = { w: 280, h: 240 };
+export const BOSS_SIZE = { w: 340, h: 300 };
+/** 보스는 텍스처 자체가 크므로 추가 배율은 소폭만 */
+export const BOSS_SCALE = 1.1;
+
 export const MONSTERS_PER_STAGE = 10; // 9마리 + 보스
 export const BOSS_TIME_LIMIT = 30_000; // ms (유물로 연장 가능)
 export const BASE_CRIT_CHANCE = 0.05;

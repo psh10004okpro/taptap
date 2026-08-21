@@ -6,7 +6,7 @@ import Phaser from 'phaser';
 import {
   COMBAT_CENTER, TOP_BAR_H, COMBAT_BOTTOM,
   SHADOW_CLONE_TAPS_PER_SEC, HEAVENLY_STRIKE_MULT, SKILLS, FLOAT_ICON, FAIRY,
-  COLLAPSED, MONSTER_ORIGIN_Y, GAME_HEIGHT,
+  COLLAPSED, MONSTER_ORIGIN_Y, BOSS_SCALE, GAME_HEIGHT,
   monsterHp, zoneFor,
 } from '../config.ts';
 import { GameState } from '../core/GameState.ts';
@@ -201,7 +201,7 @@ export class GameScene extends Phaser.Scene {
     this.collapsed = on;
     const s = this.viewScale();
     this.tapZone.setSize(720, this.combatBottom() - TOP_BAR_H, true);
-    this.baseScale = (this.isBoss ? 1.25 : 1) * s;
+    this.baseScale = (this.isBoss ? BOSS_SCALE : 1) * s;
     this.placeGroundShadow();
     this.tweens.killTweensOf(this.monster);
     this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setScale(this.baseScale);
@@ -307,7 +307,7 @@ export class GameScene extends Phaser.Scene {
       this.game.events.emit('boss-timer', -1);
     }
 
-    const targetScale = (this.isBoss ? 1.25 : 1) * this.viewScale();
+    const targetScale = (this.isBoss ? BOSS_SCALE : 1) * this.viewScale();
     this.baseScale = targetScale;
     this.tweens.killTweensOf(this.monster);
     this.monster.setPosition(COMBAT_CENTER.x, this.combatY()).setAlpha(0).setScale(targetScale * 0.6);

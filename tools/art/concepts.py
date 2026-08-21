@@ -40,6 +40,10 @@ COMBAT_CENTER = (360, 470)
 GROUND_Y = 588
 COLLAPSED_MONSTER_Y = 696
 COLLAPSED_MONSTER_SCALE = 1.65
+# src/config.ts 의 MONSTER_SIZE / BOSS_SIZE / BOSS_SCALE 와 같아야 한다
+MONSTER_W, MONSTER_H = 280, 240
+BOSS_W, BOSS_H = 340, 300
+BOSS_SCALE = 1.1
 COLLAPSED_GROUND_Y = 891
 COLLAPSED_TAB_Y = 1240
 
@@ -47,22 +51,33 @@ COLLAPSED_TAB_Y = 1240
 # 컨셉 — STYLE 만 다르고 피사체 프롬프트는 전부 공통이다.
 # ---------------------------------------------------------------------------
 CONCEPTS: list[tuple[str, str, str]] = [
-    ("cartoon", "밝은 카툰 치비",
-     "vibrant stylized cartoon fantasy art, bold simple shapes, clean thick dark "
-     "outlines, rich saturated colors, soft cel shading, high contrast, cheerful "
-     "daylight mood"),
-    ("dark", "다크 판타지",
+    # 현재 게임에 적용된 컨셉 — 비교 기준으로 시트에 함께 싣는다 (원본 재사용)
+    ("dark", "다크 판타지 (현재 적용)",
      "dark fantasy digital painting, gothic grim atmosphere, desaturated moody "
      "palette of deep blues and blacks with fiery orange rim light, dramatic "
      "chiaroscuro lighting, painterly detailed brushwork, ominous mood"),
-    ("pixel", "16비트 픽셀아트",
-     "16-bit pixel art in the style of a retro SNES fantasy RPG, crisp visible "
-     "square pixels, strictly limited 32-color palette, hard dithering gradients, "
-     "no anti-aliasing, no blur, flat blocky shading"),
-    ("storybook", "수채화 동화",
-     "soft watercolor storybook illustration, hand-painted on textured paper, "
-     "gentle pastel palette, visible brush washes and bleeding edges, delicate "
-     "ink linework, warm whimsical picture-book mood"),
+    ("webtoon", "한국 웹툰",
+     "Korean webtoon illustration style, crisp confident black ink linework, "
+     "clean flat cel shading with sharp shadow edges, vivid high-key colors, "
+     "glossy highlights, dramatic action-manhwa framing, polished digital finish"),
+    ("grimdark", "극한 다크",
+     # 초안의 "dried blood / unsettling / decayed" 조합이 인물 초상에서 안전 필터에
+     # 걸렸다. 분위기는 유지하되 표현을 물성 중심으로 바꿨다.
+     "grimdark low-fantasy art, oppressive near-monochrome palette of ash grey and "
+     "deep rust, heavy film grain and haze, harsh single-source lighting from below, "
+     "stark heavy silhouettes, weathered corroded surfaces, bleak somber mood"),
+    ("realistic", "실사급",
+     "photorealistic cinematic 3D render, AAA game cinematic quality, physically "
+     "based materials with fine surface detail, volumetric lighting and subtle "
+     "depth of field, ray-traced shadows, film-grade color grading, ultra detailed"),
+    ("inkwash", "수묵 담채",
+     "East Asian ink wash painting on textured hanji paper, confident sumi brush "
+     "strokes with dry-brush texture, restrained muted color washes over black ink, "
+     "generous negative space, elegant calligraphic energy"),
+    ("neon", "네온 사이버판타지",
+     "neon-lit cyber fantasy art, deep indigo darkness cut by magenta and cyan "
+     "rim light, glowing energy trails and holographic accents, wet reflective "
+     "surfaces, high contrast synthwave palette, sleek futuristic finish"),
 ]
 
 COMMON = ", no text, no watermark, no logo, no UI elements"
@@ -112,7 +127,16 @@ def gen_one(slug: str, style: str, subject: tuple) -> tuple[str, str]:
             time.sleep(2 ** (attempt + 1))
             continue
         if r.status_code == 200:
-            img = base64.b64decode(r.json()["data"][0]["b64_json"])
+            # 200 이어도 data 가 없는 응답이 온다 (모더레이션 등) — 재시도 대상이다.
+            # 예전엔 여기서 KeyError 가 나 스레드가 통째로 죽고 그 컷만 조용히 빠졌다.
+            try:
+                b64 = r.json()["data"][0]["b64_json"]
+            except (KeyError, IndexError, ValueError):
+                if attempt == 3:
+                    return tag, f"no image in 200 response: {r.text[:160]}"
+                time.sleep(2 ** (attempt + 1))
+                continue
+            img = base64.b64decode(b64)
             with open(out, "wb") as f:
                 f.write(img)
             return tag, f"ok ({len(img) // 1024}KB)"
@@ -145,23 +169,38 @@ def band(canvas: Image.Image, y0: int, y1: int, alpha: int, label: str) -> None:
     canvas.alpha_composite(layer)
 
 
+def soft_shadow(canvas: Image.Image, cx: int, cy: int, w: int, h: int) -> None:
+    """BootScene.makeGroundShadow 와 같은 모양 — 동심원을 겹친 부드러운 접지 그림자."""
+    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    steps = 24
+    for i in range(steps, 0, -1):
+        t = i / steps
+        a = int(255 * (0.05 * (1 - t) + 0.02))
+        d.ellipse((cx - w * t / 2, cy - h * t / 2, cx + w * t / 2, cy + h * t / 2),
+                  fill=(5, 3, 12, a))
+    canvas.alpha_composite(layer)
+
+
 def compose(bg: Image.Image, sprite: Image.Image, mode: str) -> Image.Image:
-    """GameScene 과 같은 배치로 합성 (origin 0.5/0.78, 발밑 단상 + 그림자)."""
+    """GameScene 과 같은 배치로 합성.
+
+    발밑 그림자는 **스프라이트 바닥선**에 붙는다 (placeGroundShadow 와 동일) —
+    고정 y 를 쓰면 크기가 다른 보스에서 발과 어긋난다.
+    """
     canvas = bg.convert("RGBA").copy()
     canvas.alpha_composite(Image.new("RGBA", canvas.size, (0, 0, 0, int(255 * 0.08))))
     collapsed = mode == "collapsed"
     scale = COLLAPSED_MONSTER_SCALE if collapsed else 1.0
-    gy = COLLAPSED_GROUND_Y if collapsed else GROUND_Y
     my = COLLAPSED_MONSTER_Y if collapsed else COMBAT_CENTER[1]
-
-    ellipse(canvas, COMBAT_CENTER[0], gy, round(460 * scale), round(70 * scale),
-            (65, 48, 96), 255)
-    ellipse(canvas, COMBAT_CENTER[0], gy + round(4 * scale),
-            round(190 * scale), round(40 * scale), (0, 0, 0), 90)
 
     s = sprite
     if scale != 1.0:
         s = s.resize((round(s.width * scale), round(s.height * scale)), Image.LANCZOS)
+    foot = my + round(s.height * (1 - 0.78))
+    soft_shadow(canvas, COMBAT_CENTER[0], foot, round(460 * scale), round(120 * scale))
+    ellipse(canvas, COMBAT_CENTER[0], foot, round(190 * scale), round(34 * scale),
+            (0, 0, 0), 77)
     canvas.alpha_composite(s, (COMBAT_CENTER[0] - s.width // 2,
                                my - round(s.height * 0.78)))
 
@@ -181,8 +220,8 @@ def process(slug: str) -> dict[str, str]:
     bg.save(os.path.join(d, "bg.png"))
     files["bg"] = "bg.png"
 
-    monster = fit_bottom(Image.open(os.path.join(raw, "monster.png")), 200, 170)
-    boss = fit_bottom(Image.open(os.path.join(raw, "boss.png")), 280, 250)
+    monster = fit_bottom(Image.open(os.path.join(raw, "monster.png")), MONSTER_W, MONSTER_H)
+    boss = fit_bottom(Image.open(os.path.join(raw, "boss.png")), BOSS_W, BOSS_H)
     monster.save(os.path.join(d, "monster.png"))
     boss.save(os.path.join(d, "boss.png"))
     files["monster"], files["boss"] = "monster.png", "boss.png"
@@ -195,6 +234,9 @@ def process(slug: str) -> dict[str, str]:
     files["hero"], files["hero42"] = "hero.png", "hero42.png"
 
     for mode, sprite in (("normal", monster), ("boss", boss), ("collapsed", monster)):
+        if mode == "boss":
+            sprite = sprite.resize((round(sprite.width * BOSS_SCALE),
+                                    round(sprite.height * BOSS_SCALE)), Image.LANCZOS)
         compose(bg, sprite, mode).convert("RGB").save(
             os.path.join(d, f"mock-{mode}.png"), quality=92)
         files[f"mock-{mode}"] = f"mock-{mode}.png"
@@ -222,9 +264,9 @@ ROWS = [
      "보스는 280x250 — 같은 자리에 더 크게 선다. 좁은 화면에서 실루엣이 읽히는지 본다."),
     ("UI 접힘 · 지면 노출", "mock-collapsed", "phone",
      "패널을 접으면 몬스터가 y=696 으로 내려가고 배경 하단이 그대로 드러난다. 여기서 지면이 비면 그 배경은 탈락."),
-    ("몬스터 200x170", "monster", "sprite",
+    ("몬스터 280x240", "monster", "sprite",
      "생성 배경을 크로마키로 제거한 실제 게임 규격. 흰 테두리나 잔여 배경이 남는지 확인."),
-    ("보스 280x250", "boss", "sprite", ""),
+    ("보스 340x300", "boss", "sprite", ""),
     ("영웅 초상", "hero", "hero",
      "왼쪽이 원본, 오른쪽이 실제 UI 크기(42px). 축소해도 얼굴이 읽혀야 영웅 목록에서 구분된다."),
 ]
@@ -300,15 +342,15 @@ h2{font-family:"Gowun Batang",serif;font-size:21px;font-weight:700;margin:0}
          '<p class="lede">피사체·구도·크기를 고정하고 스타일만 바꿔 생성했다. '
          '목업은 실제 게임 좌표(720×1280, 지면 y=588, 접힘 y=891)로 합성한 것이라 '
          '화면에서 보이는 그대로다.</p>',
-         '<ul class="legend"><li>존 배경 720×1280</li><li>몬스터 200×170</li>'
-         '<li>보스 280×250</li><li>영웅 초상 42px</li>'
+         '<ul class="legend"><li>존 배경 720×1280</li><li>몬스터 280×240</li>'
+         '<li>보스 340×300</li><li>영웅 초상 42px</li>'
          f'<li>{len(slugs)}개 컨셉 × 4종</li></ul>']
 
     for title, kind, mode, hint in ROWS:
         p.append('<section>')
         spec = {"mock-normal": "720×1280", "mock-boss": "720×1280",
-                "mock-collapsed": "720×1280", "monster": "200×170 PNG",
-                "boss": "280×250 PNG", "hero": "256px / 42px PNG"}[kind]
+                "mock-collapsed": "720×1280", "monster": "280×240 PNG",
+                "boss": "340×300 PNG", "hero": "256px / 42px PNG"}[kind]
         p.append(f'<div class="rowhead"><h2>{html.escape(title)}</h2>'
                  f'<span class="spec">{spec}</span></div>')
         if hint:
