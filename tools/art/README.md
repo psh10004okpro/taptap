@@ -40,6 +40,18 @@ python3 tools/art/icons.py
 원형 마스크를 그대로 씌우면 뿔이 잘려서, 원형/어댑티브는 엠블럼을 84% 로 줄여
 원판 위에 올린다.
 
+## 스타일 후보 검증 (선택 단계)
+
+컨셉 시트는 피사체가 하나(슬라임)뿐이라 **90종 전체에서 버티는지는 알 수 없다.**
+후보를 좁혔으면 서로 다른 피사체로 시험 생성해 본다 — 기존 원본을 덮지 않는다:
+
+```bash
+ART_RAW=tools/art/probe/<후보> ART_STYLE="<스타일 문구>" \
+  python3 tools/art/generate.py bg-zone6 monster7 monster4 hero7 hero5 artifact12 skill0
+```
+어두운 존(화산) / 바위 골렘·유령(형태가 아주 다른 몬스터) / 영웅 초상 42px /
+유물 44px / 스킬 76px — **작은 규격이 90종 중 82종**이라 여기서 갈린다.
+
 ## 컨셉 시안 (선택 단계)
 
 ```bash

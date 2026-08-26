@@ -19,7 +19,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RAW = os.path.join(HERE, "raw")
+# ART_RAW: 다른 폴더로 뽑고 싶을 때 (스타일 후보를 시험 생성할 때 기존 원본을 덮지 않게)
+RAW = os.environ.get("ART_RAW") or os.path.join(HERE, "raw")
 KEY = os.environ.get("ELICE_API_KEY", "")
 BASE = os.environ.get("ELICE_BASE_URL", "").rstrip("/")
 
@@ -27,10 +28,14 @@ BASE = os.environ.get("ELICE_BASE_URL", "").rstrip("/")
 # 스타일 상수 — 전 에셋 공통 룩 (변경 시 전체 재생성 필요)
 # ---------------------------------------------------------------------------
 # 확정 컨셉: 다크 판타지 (tools/art/concepts/dark). 부분 재생성 시에도 이 문구를 유지한다.
-STYLE = ("dark fantasy digital painting for a mobile idle tap RPG, gothic grim "
-         "atmosphere, desaturated moody palette of deep blues and blacks with fiery "
-         "orange rim light, dramatic chiaroscuro lighting, painterly detailed "
-         "brushwork, no text, no watermark, no logo")
+# ART_STYLE 로 덮어쓸 수 있다 — 스타일 후보를 시험 생성할 때 파일을 고치지 않고 바꾼다.
+# (STYLE 은 **렌더링만** 기술한다. 화면 연출을 넣으면 정지 배경과 컷아웃을 망친다 —
+#  tools/art/README.md 참고)
+_DEFAULT_STYLE = ("dark fantasy digital painting for a mobile idle tap RPG, gothic grim "
+                  "atmosphere, desaturated moody palette of deep blues and blacks with "
+                  "fiery orange rim light, dramatic chiaroscuro lighting, painterly "
+                  "detailed brushwork")
+STYLE = (os.environ.get("ART_STYLE") or _DEFAULT_STYLE) + ", no text, no watermark, no logo"
 # API 가 background=transparent 를 지원하지 않는다 — 평평한 회색 배경으로 뽑고
 # process.py 의 edge chroma key 로 잘라낸다. 프롬프트에 "transparent" 를 쓰면
 # 체커보드 무늬가 그려지므로 금지.
