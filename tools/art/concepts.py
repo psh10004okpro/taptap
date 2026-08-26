@@ -51,41 +51,58 @@ COLLAPSED_TAB_Y = 1240
 # 컨셉 — STYLE 만 다르고 피사체 프롬프트는 전부 공통이다.
 # ---------------------------------------------------------------------------
 CONCEPTS: list[tuple[str, str, str]] = [
-    # 현재 게임에 적용된 컨셉 — 비교 기준으로 시트에 함께 싣는다 (원본 재사용)
-    ("dark", "다크 판타지 (현재 적용)",
-     "dark fantasy digital painting, gothic grim atmosphere, desaturated moody "
-     "palette of deep blues and blacks with fiery orange rim light, dramatic "
-     "chiaroscuro lighting, painterly detailed brushwork, ominous mood"),
-    ("webtoon", "한국 웹툰",
+    # 방향 확정: 한국 웹툰. 그 안에서 결이 다른 변형을 비교한다.
+    # 1차 시안을 기준 열로 남긴다 (원본 재사용 — 재생성하지 않는다).
+    ("webtoon", "웹툰 기본 (1차 시안)",
      "Korean webtoon illustration style, crisp confident black ink linework, "
      "clean flat cel shading with sharp shadow edges, vivid high-key colors, "
      "glossy highlights, dramatic action-manhwa framing, polished digital finish"),
-    ("grimdark", "극한 다크",
-     # 초안의 "dried blood / unsettling / decayed" 조합이 인물 초상에서 안전 필터에
-     # 걸렸다. 분위기는 유지하되 표현을 물성 중심으로 바꿨다.
-     "grimdark low-fantasy art, oppressive near-monochrome palette of ash grey and "
-     "deep rust, heavy film grain and haze, harsh single-source lighting from below, "
-     "stark heavy silhouettes, weathered corroded surfaces, bleak somber mood"),
-    ("realistic", "실사급",
-     "photorealistic cinematic 3D render, AAA game cinematic quality, physically "
-     "based materials with fine surface detail, volumetric lighting and subtle "
-     "depth of field, ray-traced shadows, film-grade color grading, ultra detailed"),
-    ("inkwash", "수묵 담채",
-     "East Asian ink wash painting on textured hanji paper, confident sumi brush "
-     "strokes with dry-brush texture, restrained muted color washes over black ink, "
-     "generous negative space, elegant calligraphic energy"),
-    ("neon", "네온 사이버판타지",
-     "neon-lit cyber fantasy art, deep indigo darkness cut by magenta and cyan "
-     "rim light, glowing energy trails and holographic accents, wet reflective "
-     "surfaces, high contrast synthwave palette, sleek futuristic finish"),
+
+    ("wt-action", "액션 웹툰",
+     # STYLE 은 배경과 스프라이트 양쪽에 붙는다 — "speed-line / impact framing" 같은
+     # 연출 요소를 넣으면 정지 배경에도, 잘라 쓸 스프라이트 배경에도 줄무늬가 박힌다
+     # (실제로 그렇게 나와 두 번 다시 뽑았다). 스타일은 **렌더링만** 기술한다.
+     "Korean action manhwa illustration, bold varied-weight ink linework with "
+     "tapered confident strokes, punchy two-tone cel shading with hard shadow "
+     "edges, saturated primary accents on a controlled palette, strong glossy "
+     "rim light and high contrast, heroic dynamic presence"),
+
+    ("wt-soft", "부드러운 채색 웹툰",
+     "Korean webtoon illustration with thin delicate linework, soft airbrushed "
+     "gradient shading, gentle pastel palette with warm ambient light, subtle "
+     "blush and glow, romantic-fantasy webtoon mood, smooth polished rendering "
+     "without harsh contrast"),
+
+    ("wt-noir", "느와르 웹툰",
+     "Korean thriller manhwa illustration, heavy black ink masses and stark "
+     "high-contrast lighting, near-monochrome charcoal palette with a single "
+     "crimson accent, hatching texture in the shadows, tense cinematic framing, "
+     "sharp graphic silhouettes"),
+
+    ("wt-chibi", "치비 웹툰",
+     "Korean webtoon chibi style, super-deformed proportions with oversized heads "
+     "and big glossy eyes, thick uniform outlines, bright candy palette, simple "
+     "two-step cel shading, bouncy playful expressions, sticker-clean finish"),
+
+    ("wt-paint", "세미리얼 웹툰",
+     "high-end Korean fantasy webtoon cover art, minimal visible linework, "
+     "painterly rendering with soft edges and detailed material texture, rich "
+     "layered color with cinematic rim lighting, semi-realistic proportions, "
+     "premium illustration finish"),
 ]
 
 COMMON = ", no text, no watermark, no logo, no UI elements"
+# 스프라이트는 잘라내서 쓴다 — 배경에 그려지는 것은 전부 잘린 뒤 잔해로 남는다.
+# (액션 웹툰 스타일이 속도선을 배경에 깔아 검은 줄무늬가 남는 일이 실제로 있었다)
 SPRITE = ("single isolated character centered, full body, facing the viewer, "
-          "flat solid neutral gray background")
+          "flat solid neutral gray background, subject only, "
+          "no speed lines, no motion streaks, no background effects, "
+          "no splashes or debris outside the character, no ground shadow")
+# 배경은 전투 내내 정지해 있다 — 모션 줄무늬가 박히면 매 프레임 거슬린다.
 BG_RULE = ("tall vertical composition: sky and horizon in the upper 45%, wide open "
            "flat ground filling the lower 55% as an empty stage for a monster, "
-           "no creatures, no characters, vertical mobile game battle background, 9:16")
+           "no creatures, no characters, no speed lines, no motion streaks, "
+           "vertical mobile game battle background, 9:16")
 
 # 피사체는 generate.py 의 대표 항목과 동일 (zone0 / monster0 / boss / hero0)
 SUBJECTS: list[tuple[str, str, str, str, str]] = [
