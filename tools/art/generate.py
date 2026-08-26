@@ -34,28 +34,33 @@ STYLE = ("dark fantasy digital painting for a mobile idle tap RPG, gothic grim "
 # API 가 background=transparent 를 지원하지 않는다 — 평평한 회색 배경으로 뽑고
 # process.py 의 edge chroma key 로 잘라낸다. 프롬프트에 "transparent" 를 쓰면
 # 체커보드 무늬가 그려지므로 금지.
+# 스프라이트는 잘라내서 쓴다 — 배경에 그려지는 것은 전부 잘린 뒤 잔해로 남는다.
+# (액션 스타일이 속도선을 배경에 깔아 검은 줄무늬가 남는 일이 실제로 있었다)
 SPRITE = ("single isolated character centered, full body, facing the viewer, "
-          "flat solid neutral gray background, no ground shadow, " + STYLE)
+          "flat solid neutral gray background, subject only, no ground shadow, "
+          "no speed lines, no motion streaks, no background effects, "
+          "no splashes or debris outside the character, " + STYLE)
 ICON = ("game icon, single centered object, flat solid neutral gray background, "
         "slight glow, " + STYLE)
 
 ZONES = [
-    ("bg-zone0", "windswept green grassland meadow with rolling hills, scattered flowers, distant trees"),
+    ("bg-zone0", "green grassland meadow with rolling hills, scattered flowers, distant trees"),
     ("bg-zone1", "dark mysterious forest with giant twisted trees, glowing mushrooms, dim teal light"),
     ("bg-zone2", "underground cave with glowing purple crystals, stalactites, rocky floor"),
-    ("bg-zone3", "golden desert with sand dunes, half-buried ancient ruins, burnt ochre sky"),
+    ("bg-zone3", "golden desert with sand dunes, half-buried ancient ruins, open sky"),
     ("bg-zone4", "murky swamp with dead trees, green fog, lily pads on dark water"),
     ("bg-zone5", "snowy tundra with ice cliffs, falling snow, pale blue sky, frozen pines"),
     ("bg-zone6", "volcanic wasteland with lava rivers, black rock, ember particles, red glow"),
     ("bg-zone7", "ancient stone ruins with broken pillars and statues, overgrown vines, purple dusk"),
-    ("bg-zone8", "floating sky islands above clouds, waterfalls falling into the void, pale storm-lit sky"),
+    ("bg-zone8", "floating sky islands above clouds, waterfalls falling into the void, open sky"),
     ("bg-zone9", "cosmic abyss with dark void, swirling nebula, floating obsidian rocks, deep indigo"),
 ]
 # 몬스터는 화면 y=470/1280 (37%) 에 선다 — 지평선이 그보다 위에 있어야 발이 땅에 닿는다.
 BG_SUFFIX = ("; tall vertical composition: horizon line high up in the upper third of "
              "the frame, wide open flat ground filling the entire lower two thirds as "
              "a stage for a monster, seen from a low ground-level camera, "
-             "no creatures, no characters, vertical mobile game battle background "
+             "no creatures, no characters, no speed lines, no motion streaks, "
+             "vertical mobile game battle background "
              "(9:16, the lower half stays visible when the UI is collapsed), " + STYLE)
 
 MONSTERS = [
@@ -72,7 +77,7 @@ MONSTERS = [
     ("monster10", "rose-pink horned lizard critter with a curled tail"),
     ("monster11", "lime green thorny plant creature with leafy arms and fangs"),
 ]
-MONSTER_SUFFIX = (", stocky readable silhouette, menacing battle-ready stance, "
+MONSTER_SUFFIX = (", stocky readable silhouette, confident standing pose, "
                   "keep the described creature type and color clearly recognizable, "
                   + SPRITE)
 
@@ -176,7 +181,7 @@ def manifest() -> list[dict]:
                      "size": "1024x1024", "quality": "medium", "background": "transparent"})
     jobs.append({"key": "boss", "prompt":
                  "huge crimson demon ogre monster with ivory horns, glowing yellow eyes, "
-                 "sharp teeth grin, towering dark fantasy boss" + ", " + SPRITE,
+                 "sharp teeth grin, towering boss with an imposing silhouette" + ", " + SPRITE,
                  "size": "1024x1024", "quality": "medium", "background": "transparent"})
     for i, desc in enumerate(HEROES):
         jobs.append({"key": f"hero{i}", "prompt": desc + HERO_SUFFIX,

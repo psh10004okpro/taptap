@@ -79,6 +79,13 @@ python3 tools/art/concepts.py dark pixel # 일부만
 
 - 프롬프트의 STYLE 상수가 전체 룩을 고정한다 — 부분 재생성 시 스타일이
   섞이지 않도록 한 번 정한 STYLE 은 유지할 것.
+- **STYLE 은 렌더링만 기술한다.** 화면 연출(속도선·임팩트 프레이밍 같은 만화 효과)을
+  넣으면 STYLE 이 배경과 스프라이트 양쪽에 붙기 때문에, 정지 배경에 모션 줄무늬가
+  박히고 스프라이트는 잘라낸 뒤 줄무늬 잔해가 남는다. 실제로 액션 웹툰 변형에서
+  두 번 다시 뽑고 나서야 잡았다 (concepts.py 주석 참고).
+- **분위기 형용사는 존 설명이 아니라 STYLE 에 둔다.** 존 설명에 "windswept",
+  "burnt ochre sky" 같은 톤을 박아두면 밝은 스타일로 바꿀 때 서로 싸운다.
+  존 설명은 장소만("green grassland meadow with rolling hills"), 톤은 STYLE 이 정한다.
 - **프롬프트에 "transparent background" 를 쓰지 말 것.** 이 API 는
   `background=transparent` 를 거부하고(400), 프롬프트로 요구하면 체커보드 무늬를
   그려 넣는다. 평평한 회색 배경으로 뽑고 process.py 의 chroma key 로 잘라낸다.
