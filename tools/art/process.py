@@ -15,7 +15,9 @@ from collections import deque
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RAW = os.path.join(HERE, "raw")
+# ART_RAW: generate.py 와 같은 환경변수. 스타일 후보를 별도 폴더에 뽑아 두고
+# 확정되면 그 폴더를 그대로 후처리한다 (기존 원본을 덮지 않는다).
+RAW = os.environ.get("ART_RAW") or os.path.join(HERE, "raw")
 OUT = os.path.normpath(os.path.join(HERE, "..", "..", "public", "assets"))
 
 # key prefix -> (kind, w, h)

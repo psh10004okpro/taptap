@@ -9,6 +9,7 @@ screenshots/
 
 # 아트 생성 원본 (후처리 결과만 public/assets 에 커밋)
 tools/art/raw/
+tools/art/raw-*/
 # 컨셉 시안 원본/규격 PNG (54MB) — 비교 시트 index.html 만 커밋한다
 tools/art/concepts/*/
 tools/art/preview/
